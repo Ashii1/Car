@@ -30,11 +30,13 @@ import { PhotoModeModal } from './components/PhotoModeModal';
 import { VisualInspectionModal } from './components/VisualInspectionModal';
 import { ReplayModal, CinematicCameraAngle } from './components/ReplayModal';
 import { DailyChallengesModal } from './components/DailyChallengesModal';
+import { ModernKidGearModal } from './components/ModernKidGearModal';
+import { DroneSkinId } from './3d/ModernKidCompanionDrone';
 import { globalReplayRecorder, SavedReplayClip } from './game/ReplayRecorder';
 import { cityAudio } from './audio/CityAudioEngine';
 import { soundEngine } from './audio/SoundEngine';
 import { DressingStyle } from './3d/motorcycle/RiderRagdollSystem';
-import { Play, Map, Trophy, Bike, Car, Wrench, Settings, Sun, Moon, CloudRain, Award, Star, Camera, Volume2, VolumeX } from 'lucide-react';
+import { Play, Map, Trophy, Bike, Car, Wrench, Settings, Sun, Moon, CloudRain, Award, Star, Camera, Volume2, VolumeX, Bot } from 'lucide-react';
 
 export default function App() {
   // Player state & inventory persistence
@@ -69,6 +71,11 @@ export default function App() {
   const [showPhotoMode, setShowPhotoMode] = useState(false);
   const [showInspection, setShowInspection] = useState(false);
   const [showDailyChallenges, setShowDailyChallenges] = useState(false);
+  const [showKidGear, setShowKidGear] = useState(false);
+  const [isDroneEnabled, setIsDroneEnabled] = useState(profile.droneEnabled ?? true);
+  const [currentDroneSkin, setCurrentDroneSkin] = useState<DroneSkinId>((profile.droneSkin as DroneSkinId) || 'cyber_neon');
+  const [isStreamerMode, setIsStreamerMode] = useState(profile.streamerMode ?? false);
+  const [isRainbowNitro, setIsRainbowNitro] = useState(profile.rainbowNitro ?? true);
   const [currentGear, setCurrentGear] = useState('D1');
   const [showReplay, setShowReplay] = useState(false);
   const [replayTime, setReplayTime] = useState(0);
@@ -276,6 +283,31 @@ export default function App() {
             return { state, progress };
           });
         },
+        onKidCollectibleCollected: (pickup) => {
+          setProfile((prev) => {
+            const next = {
+              ...prev,
+              cash: prev.cash + pickup.cashReward,
+              xp: prev.xp + pickup.xpReward,
+              kidCollectiblesCount: (prev.kidCollectiblesCount || 0) + 1,
+            };
+            try {
+              localStorage.setItem('street_riders_profile', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+          showToast(
+            `🎁 ${pickup.name.toUpperCase()} FOUND!`,
+            `+$${pickup.cashReward.toLocaleString()} Cash • +${pickup.xpReward} XP • Prime Nitro Overdrive!`
+          );
+        },
+        onWebglStatus: (supported) => {
+          if (!supported) {
+            setWebglError('WebGL graphics temporarily paused or recovering.');
+          } else {
+            setWebglError(null);
+          }
+        },
       });
 
       gameSceneRef.current = gameScene;
@@ -315,6 +347,7 @@ export default function App() {
 
       if (e.code === 'KeyM') setShowMap((prev) => !prev);
       if (e.code === 'KeyT') setShowMissions((prev) => !prev);
+      if (e.code === 'KeyK') setShowKidGear((prev) => !prev);
       if (e.code === 'KeyH') gameSceneRef.current?.honkHorn();
       if (e.code === 'KeyQ' || e.code === 'KeyE') gameSceneRef.current?.toggleMount();
       if (e.code === 'KeyP') {
@@ -576,15 +609,25 @@ export default function App() {
             <p className="text-sm text-slate-300 font-sans mb-6 leading-relaxed">
               The browser WebGL graphics context was reset. Click below to reload the high-performance 3D open world.
             </p>
-            <button
-              onClick={() => {
-                setWebglError(null);
-                setSceneKey((k) => k + 1);
-              }}
-              className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-bold font-race tracking-wider shadow-lg shadow-orange-500/30 transition-all active:scale-95"
-            >
-              RESTORE 3D GRAPHICS
-            </button>
+            <div className="flex flex-col gap-2.5">
+              <button
+                onClick={() => {
+                  setWebglError(null);
+                  setSceneKey((k) => k + 1);
+                }}
+                className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-bold font-race tracking-wider shadow-lg shadow-orange-500/30 transition-all active:scale-95 cursor-pointer"
+              >
+                RESTORE 3D GRAPHICS
+              </button>
+              <button
+                onClick={() => {
+                  window.location.reload();
+                }}
+                className="w-full py-2.5 px-6 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-race text-xs tracking-wider transition-all cursor-pointer"
+              >
+                RELOAD APPLICATION (FRESH GPU STATE)
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -678,16 +721,42 @@ export default function App() {
                   <Play className="w-5 h-5 fill-black ml-0.5" />
                 </div>
                 <div>
-                  <div className="font-race font-black text-xl text-white">DRIVE MODERN CAR</div>
+                  <div className="font-race font-black text-xl text-white">
+                    {currentBike.id === 'kid_cyber_glider' ? 'RIDE CYBER-GLIDER' : 'DRIVE & RIDE'}
+                  </div>
                   <div className="text-[11px] font-mono text-cyan-200">
-                    Apex GT Twin-Turbo • Sport+ Cockpit
+                    {currentBike.name} • {currentBike.category}
                   </div>
                 </div>
               </div>
               <span className="font-race text-xl text-cyan-400 font-bold">▶</span>
             </button>
 
-            {/* 2. RIDE (Free Roam) */}
+            {/* 2. MODERN KIDS TECH GEAR & COMPANION DRONE */}
+            <button
+              onClick={() => setShowKidGear(true)}
+              className="w-full glass-panel-accent p-3.5 rounded-xl border border-pink-500/60 hover:border-pink-400 bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-pink-950/40 text-left flex items-center justify-between text-white font-race font-bold cursor-pointer transition-all active:scale-98 shadow-[0_0_25px_rgba(236,72,153,0.25)] group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold shadow-md group-hover:scale-105 transition-transform">
+                  ⚡
+                </div>
+                <div>
+                  <div className="text-sm font-race text-white flex items-center gap-2">
+                    MODERN KIDS TECH GEAR & DRONE
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-pink-500/20 text-pink-300 border border-pink-500/40 uppercase">
+                      NEW
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-mono text-cyan-200">
+                    AeroBot Companion • Livestream Mode • {profile.kidCollectiblesCount || 0} Collectibles Found
+                  </div>
+                </div>
+              </div>
+              <span className="text-xs font-race text-pink-400 group-hover:translate-x-0.5 transition-transform">⚙</span>
+            </button>
+
+            {/* 3. RIDE (Free Roam) */}
             <button
               onClick={() => {
                 cityAudio.ensureContext();
@@ -872,6 +941,8 @@ export default function App() {
             gameSceneRef.current?.triggerGearShift(targetGear, isDown);
           }}
           currentGear={currentGear}
+          onOpenKidGearModal={() => setShowKidGear(true)}
+          isStreamerMode={isStreamerMode}
         />
       )}
 
@@ -1007,6 +1078,76 @@ export default function App() {
               xp: prev.xp + xp,
             }));
             showToast('DAILY CHALLENGE COMPLETE!', `+$${cash.toLocaleString()} Cash • +${xp} XP Reputation`);
+          }}
+        />
+      )}
+
+      {showKidGear && (
+        <ModernKidGearModal
+          isOpen={showKidGear}
+          onClose={() => setShowKidGear(false)}
+          isDroneEnabled={isDroneEnabled}
+          onToggleDrone={(enabled) => {
+            setIsDroneEnabled(enabled);
+            gameSceneRef.current?.toggleCompanionDrone?.(enabled);
+            setProfile((prev) => {
+              const next = { ...prev, droneEnabled: enabled };
+              try {
+                localStorage.setItem('street_riders_profile', JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+          }}
+          currentDroneSkin={currentDroneSkin}
+          onSelectDroneSkin={(skin) => {
+            setCurrentDroneSkin(skin);
+            gameSceneRef.current?.setDroneSkin?.(skin);
+            setProfile((prev) => {
+              const next = { ...prev, droneSkin: skin };
+              try {
+                localStorage.setItem('street_riders_profile', JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+          }}
+          isStreamerMode={isStreamerMode}
+          onToggleStreamerMode={(enabled) => {
+            setIsStreamerMode(enabled);
+            setProfile((prev) => {
+              const next = { ...prev, streamerMode: enabled };
+              try {
+                localStorage.setItem('street_riders_profile', JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+            showToast(
+              enabled ? '🔴 LIVESTREAM BROADCAST ONLINE' : 'LIVESTREAM OFFLINE',
+              enabled ? 'Simulated live viewers & chat reactions active!' : 'Stream mode disabled'
+            );
+          }}
+          isRainbowNitro={isRainbowNitro}
+          onToggleRainbowNitro={(enabled) => {
+            setIsRainbowNitro(enabled);
+            setProfile((prev) => {
+              const next = { ...prev, rainbowNitro: enabled };
+              try {
+                localStorage.setItem('street_riders_profile', JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+          }}
+          collectedItemsCount={profile.kidCollectiblesCount || 0}
+          playerCash={profile.cash}
+          onSuperNitroBoost={() => {
+            if (profile.cash < 500) return;
+            setProfile((prev) => {
+              const next = { ...prev, cash: prev.cash - 500 };
+              try {
+                localStorage.setItem('street_riders_profile', JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+            showToast('⚡ PRIME NITRO OVERDRIVE ACTIVE!', '100% Nitro Refilled • Rainbow Hyperspeed Ready');
           }}
         />
       )}

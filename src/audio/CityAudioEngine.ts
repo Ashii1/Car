@@ -923,6 +923,70 @@ class CityAudioEngine {
     } catch {}
   }
 
+  public playDroneChirp() {
+    this.ensureContext();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+    try {
+      const now = this.ctx.currentTime;
+      // High-tech sci-fi cute robot chirp
+      const notes = [1200, 1600, 2100];
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.2, now + idx * 0.05 + 0.04);
+        gain.gain.setValueAtTime(0.12, now + idx * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.08);
+        osc.connect(gain);
+        gain.connect(this.sfxGain!);
+        osc.start(now + idx * 0.05);
+        osc.stop(now + idx * 0.05 + 0.09);
+      });
+    } catch {}
+  }
+
+  public playCollectibleChime() {
+    this.ensureContext();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+    try {
+      const now = this.ctx.currentTime;
+      // Vibrant sparkling arpeggio for modern kid item pickups
+      const arpeggio = [523.25, 659.25, 783.99, 1046.5, 1318.51];
+      arpeggio.forEach((freq, idx) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+        gain.gain.setValueAtTime(0.25, now + idx * 0.06);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.35);
+        osc.connect(gain);
+        gain.connect(this.sfxGain!);
+        osc.start(now + idx * 0.06);
+        osc.stop(now + idx * 0.06 + 0.38);
+      });
+    } catch {}
+  }
+
+  public playHypeNitro() {
+    this.ensureContext();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.4);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc.connect(gain);
+      gain.connect(this.sfxGain!);
+      osc.start(now);
+      osc.stop(now + 0.46);
+    } catch {}
+  }
+
   public setMuted(muted: boolean) {
     this.isMuted = muted;
     try {

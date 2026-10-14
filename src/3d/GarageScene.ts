@@ -42,18 +42,46 @@ export function createGarageScene(container: HTMLElement): GarageSceneInstance {
   );
   camera.position.set(-2.8, 1.35, 3.4);
 
-  const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    powerPreference: 'high-performance',
-  });
+  while (container.firstChild) {
+    container.removeChild(container.firstChild);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  canvas.style.display = 'block';
+  container.appendChild(canvas);
+
+  let renderer: THREE.WebGLRenderer;
+  try {
+    renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: 'default',
+      failIfMajorPerformanceCaveat: false,
+    });
+  } catch {
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: false,
+        powerPreference: 'low-power',
+        failIfMajorPerformanceCaveat: false,
+      });
+    } catch {
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: false,
+      });
+    }
+  }
+  renderer.debug.checkShaderErrors = false;
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
-
-  container.appendChild(renderer.domElement);
 
   // 1. Studio Lighting System (Optimized for 1-meter close-up inspection)
   const ambientLight = new THREE.AmbientLight(0x334155, 1.2);
@@ -108,10 +136,10 @@ export function createGarageScene(container: HTMLElement): GarageSceneInstance {
   const floorGeo = new THREE.PlaneGeometry(50, 50);
   floorGeo.rotateX(-Math.PI / 2);
 
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d')!;
+  const floorCanvas = document.createElement('canvas');
+  floorCanvas.width = 512;
+  floorCanvas.height = 512;
+  const ctx = floorCanvas.getContext('2d')!;
   ctx.fillStyle = '#0a0d14';
   ctx.fillRect(0, 0, 512, 512);
 
@@ -128,7 +156,7 @@ export function createGarageScene(container: HTMLElement): GarageSceneInstance {
     ctx.stroke();
   }
 
-  const floorTex = new THREE.CanvasTexture(canvas);
+  const floorTex = new THREE.CanvasTexture(floorCanvas);
   floorTex.wrapS = THREE.RepeatWrapping;
   floorTex.wrapT = THREE.RepeatWrapping;
   floorTex.repeat.set(12, 12);
@@ -286,10 +314,10 @@ export function createGarageScene(container: HTMLElement): GarageSceneInstance {
     ringMat.dispose();
     floorGeo.dispose();
     floorTex.dispose();
-    floorMat.dispose();
+    // Cleanly dispose renderer without artificially triggering context loss
     renderer.dispose();
-    if (renderer.domElement.parentElement) {
-      renderer.domElement.parentElement.removeChild(renderer.domElement);
+    if (canvas.parentElement) {
+      canvas.parentElement.removeChild(canvas);
     }
   };
 

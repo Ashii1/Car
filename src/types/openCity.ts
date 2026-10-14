@@ -145,6 +145,11 @@ export interface PlayerOpenCityProfile {
   totalDistanceRiddenKm: number;
   highestSpeedKmh: number;
   stuntsCompleted: number;
+  kidCollectiblesCount?: number;
+  droneEnabled?: boolean;
+  droneSkin?: string;
+  streamerMode?: boolean;
+  rainbowNitro?: boolean;
 }
 
 export type DriverPersonality = 'aggressive_racer' | 'panicked_civilian' | 'enforcer_truck' | 'cautious_commuter';

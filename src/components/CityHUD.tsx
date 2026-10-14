@@ -25,9 +25,11 @@ import {
   Palette,
   Wind,
   Film,
+  Bot,
 } from 'lucide-react';
 import { OpenCityPlayerState } from '../game/OpenWorldPhysics';
 import { AutomotiveDriveMode, DRIVE_MODE_AMBIENT_COLORS } from '../3d/ModernCarBuilder';
+import { StreamerLiveOverlay } from './StreamerLiveOverlay';
 import {
   WantedState,
   CityMission,
@@ -88,6 +90,8 @@ export interface CityHUDProps {
   currentGear?: string;
   onOpenReplay?: () => void;
   onOpenDailyChallenges?: () => void;
+  onOpenKidGearModal?: () => void;
+  isStreamerMode?: boolean;
 }
 
 export const CityHUD: React.FC<CityHUDProps> = ({
@@ -105,6 +109,8 @@ export const CityHUD: React.FC<CityHUDProps> = ({
   onOpenPhotoMode,
   onOpenReplay,
   onOpenDailyChallenges,
+  onOpenKidGearModal,
+  isStreamerMode,
   onOpenMap,
   onOpenMissions,
   onOpenGarage,
@@ -240,6 +246,14 @@ export const CityHUD: React.FC<CityHUDProps> = ({
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none z-20 flex flex-col justify-between overflow-hidden">
+      {/* Modern Kid Live Streamer Creator Mode Overlay */}
+      <StreamerLiveOverlay
+        isActive={!!isStreamerMode}
+        playerSpeed={playerState.speed}
+        isStuntActive={playerState.wheelieAngle > 0.1 || !playerState.isGrounded}
+        stuntScore={playerState.stuntScore || 0}
+      />
+
       {/* =============================================================
           SUBTLE RED PULSATING DAMAGE BORDER WARNING EFFECT
           Intensifies intuitively as motorcycle / vehicle damage increases
@@ -628,6 +642,21 @@ export const CityHUD: React.FC<CityHUDProps> = ({
                 </button>
               )}
 
+              {/* Modern Kid Tech Gear Button */}
+              {onOpenKidGearModal && (
+                <button
+                  onClick={() => {
+                    soundEngine.playUIClick();
+                    onOpenKidGearModal();
+                  }}
+                  className="h-8 sm:h-8.5 px-2 sm:px-2.5 rounded-xl border border-pink-500/60 bg-gradient-to-r from-pink-950/80 via-purple-950/70 to-cyan-950/80 hover:border-pink-400 text-pink-200 flex items-center gap-1 active:scale-95 transition-all cursor-pointer font-race font-bold shadow-[0_0_14px_rgba(236,72,153,0.35)] shrink-0"
+                  title="Open Modern Kid Tech Gear & Drones"
+                >
+                  <Bot className="w-3.5 h-3.5 text-pink-300 animate-pulse shrink-0" />
+                  <span className="text-[9px] sm:text-[10px] tracking-wide hidden sm:inline">KID GEAR</span>
+                </button>
+              )}
+
               {/* Menu Drawer Toggle */}
               <button
                 onClick={() => {
@@ -654,6 +683,23 @@ export const CityHUD: React.FC<CityHUDProps> = ({
               <span className="text-[8px] font-race font-bold text-zinc-400 uppercase tracking-widest px-2 py-0.5 border-b border-white/10">
                 CITY TOOLS & SETTINGS
               </span>
+
+              {/* Modern Kid Tech Gear in Drawer */}
+              {onOpenKidGearModal && (
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onOpenKidGearModal();
+                  }}
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-pink-500/50 hover:border-pink-400 bg-pink-950/40 hover:bg-pink-900/50 text-pink-200 flex items-center justify-between text-xs cursor-pointer active:scale-95 transition-all"
+                >
+                  <div className="flex items-center gap-2">
+                    <Bot className="w-3.5 h-3.5 text-pink-400 animate-pulse" />
+                    <span className="font-race font-bold text-[10px]">KID TECH GEAR</span>
+                  </div>
+                  <span className="text-[8px] font-mono text-cyan-400">DRONE & ITEMS</span>
+                </button>
+              )}
 
               {/* City Map */}
               <button

@@ -82,18 +82,29 @@ export function createRaceScene(
     1500
   );
 
+  while (container.firstChild) {
+    container.removeChild(container.firstChild);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  canvas.style.display = 'block';
+  container.appendChild(canvas);
+
   const renderer = new THREE.WebGLRenderer({
+    canvas,
     antialias: true,
-    powerPreference: 'high-performance',
+    powerPreference: 'default',
+    failIfMajorPerformanceCaveat: false,
   });
+  renderer.debug.checkShaderErrors = false;
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = weather === 'night' || weather === 'nightRain' ? 1.4 : 1.1;
-
-  container.appendChild(renderer.domElement);
 
   // 3. Environmental Lighting
   const ambientLight = new THREE.AmbientLight(
@@ -420,9 +431,16 @@ export function createRaceScene(
     sparkGeo.dispose();
     sparkMat.dispose();
 
+    try {
+      const gl = renderer.getContext();
+      const loseContextExt = gl?.getExtension('WEBGL_lose_context');
+      if (loseContextExt) {
+        loseContextExt.loseContext();
+      }
+    } catch {}
     renderer.dispose();
-    if (renderer.domElement.parentElement) {
-      renderer.domElement.parentElement.removeChild(renderer.domElement);
+    if (canvas.parentElement) {
+      canvas.parentElement.removeChild(canvas);
     }
   };
 

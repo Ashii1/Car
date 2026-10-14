@@ -27,6 +27,8 @@ import { globalReplayRecorder, SavedReplayClip, ReplayFrame } from '../game/Repl
 import { CinematicCameraAngle } from '../components/ReplayModal';
 import { PropCarManager } from './PropCarManager';
 import { DynamicSunShadowSystem } from './DynamicSunShadowSystem';
+import { ModernKidCompanionDrone, DroneSkinId } from './ModernKidCompanionDrone';
+import { ModernKidCollectiblesSystem, CollectiblePickupResult } from './ModernKidCollectiblesSystem';
 
 export interface CityGameSceneCallbacks {
   onMissionComplete: (mission: CityMission, rewardCash: number, rewardXp: number) => void;
@@ -41,9 +43,14 @@ export interface CityGameSceneCallbacks {
   onPotholeHit?: (severity: 'minor' | 'major', speedLoss: number) => void;
   onBikeDamage?: (damage: BikeDamageState) => void;
   onMountTransition?: (state: 'NONE' | 'MOUNTING' | 'DISMOUNTING', progress: number) => void;
+  onKidCollectibleCollected?: (result: CollectiblePickupResult) => void;
+  onWebglStatus?: (supported: boolean) => void;
 }
 
 export interface CityGameSceneInstance {
+  toggleCompanionDrone?: (enabled: boolean) => void;
+  setDroneSkin?: (skin: DroneSkinId) => void;
+  getCollectiblesStatus?: () => { total: number; active: number; totalCollected: number };
   start: () => void;
   stop: () => void;
   updateInputs: (inputs: {
@@ -118,6 +125,79 @@ export interface CityGameSceneInstance {
   dispose: () => void;
 }
 
+export function createSafeWebGLRenderer(
+  canvas: HTMLCanvasElement,
+  onStatus?: (supported: boolean) => void
+): THREE.WebGLRenderer {
+  // 1. Primary standard WebGLRenderer
+  try {
+    const r = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: 'default',
+      failIfMajorPerformanceCaveat: false,
+    });
+    r.debug.checkShaderErrors = false;
+    onStatus?.(true);
+    return r;
+  } catch {}
+
+  // 2. Fallback WebGLRenderer with low-power profile
+  try {
+    const r = new THREE.WebGLRenderer({
+      canvas,
+      antialias: false,
+      powerPreference: 'low-power',
+      failIfMajorPerformanceCaveat: false,
+    });
+    r.debug.checkShaderErrors = false;
+    onStatus?.(true);
+    return r;
+  } catch {}
+
+  // 3. Fallback to manual context request
+  try {
+    const gl =
+      canvas.getContext('webgl2', { failIfMajorPerformanceCaveat: false }) ||
+      canvas.getContext('webgl', { failIfMajorPerformanceCaveat: false }) ||
+      canvas.getContext('experimental-webgl');
+    if (gl) {
+      const r = new THREE.WebGLRenderer({
+        canvas,
+        context: gl as any,
+        antialias: false,
+      });
+      r.debug.checkShaderErrors = false;
+      onStatus?.(true);
+      return r;
+    }
+  } catch {}
+
+  // 4. Safe fallback mock renderer if the browser has temporarily blocked WebGL
+  onStatus?.(false);
+  const ctx2d = canvas.getContext('2d');
+  return {
+    domElement: canvas,
+    debug: { checkShaderErrors: false },
+    shadowMap: { enabled: false, type: 0 },
+    toneMapping: 0,
+    toneMappingExposure: 1.0,
+    setSize: (w: number, h: number) => {
+      canvas.width = w;
+      canvas.height = h;
+    },
+    setPixelRatio: () => {},
+    render: () => {
+      if (ctx2d) {
+        ctx2d.fillStyle = '#06080c';
+        ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    },
+    dispose: () => {},
+    getContext: () => null,
+  } as unknown as THREE.WebGLRenderer;
+}
+
 export function createCityGameScene(
   container: HTMLElement,
   initialBike: OpenCityBike,
@@ -132,26 +212,31 @@ export function createCityGameScene(
     1800
   );
 
-  let renderer: THREE.WebGLRenderer;
-  try {
-    renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: 'default',
-      failIfMajorPerformanceCaveat: false,
-    });
-  } catch {
-    renderer = new THREE.WebGLRenderer({
-      antialias: false,
-      powerPreference: 'default',
-    });
+  // Remove any stale canvases or elements from previous hot reloads
+  while (container.firstChild) {
+    container.removeChild(container.firstChild);
   }
 
-  // Prevent browser context loss blacklisting
+  const canvas = document.createElement('canvas');
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  canvas.style.display = 'block';
+  container.appendChild(canvas);
+
+  const renderer = createSafeWebGLRenderer(canvas, callbacks.onWebglStatus);
+
+  // Prevent browser context loss blacklisting & handle suspend/resume
   const handleContextLost = (e: Event) => {
     e.preventDefault();
-    console.warn('WebGL context lost. System preventing automatic blacklist.');
+    console.warn('WebGL context lost. Pausing render loop.');
+    stop();
   };
-  renderer.domElement.addEventListener('webglcontextlost', handleContextLost, false);
+  const handleContextRestored = () => {
+    console.log('WebGL context restored. Resuming render loop.');
+    start();
+  };
+  canvas.addEventListener('webglcontextlost', handleContextLost, false);
+  canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
 
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -159,7 +244,6 @@ export function createCityGameScene(
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.35;
-  container.appendChild(renderer.domElement);
 
   // 1. Build City Open World
   const world = buildCityWorld(scene);
@@ -177,8 +261,9 @@ export function createCityGameScene(
   let currentBike = initialBike;
   let currentDamage: BikeDamageState = currentBike.damage ? { ...currentBike.damage } : { ...DEFAULT_BIKE_DAMAGE };
   let bikeModel = createBikeModel(currentBike as any, { isPlayer: true, initialDamage: currentDamage });
+  scene.add(bikeModel.group);
   
-  // Create modern sports car as primary vehicle (BMW M or Mercedes-Benz AMG)
+  // Create modern sports car as vehicle option (BMW M or Mercedes-Benz AMG)
   const initialStyle: CarDesignStyle =
     currentBike.id.includes('benz') || currentBike.brand?.toUpperCase().includes('BENZ') || currentBike.brand?.toUpperCase().includes('MERCEDES')
       ? 'benz_amg'
@@ -193,8 +278,21 @@ export function createCityGameScene(
     },
   });
   scene.add(playerCar.group);
-  // Hide bike group since modern car is active
-  bikeModel.group.visible = false;
+
+  // Set initial visibility based on selected vehicle
+  const isSupercar = currentBike.category === 'German Supercar';
+  playerCar.group.visible = isSupercar;
+  bikeModel.group.visible = !isSupercar;
+
+  // Modern Kid Companion Drone (AeroBot Sky-Buddy)
+  const kidDrone = new ModernKidCompanionDrone(scene);
+
+  // Modern Kid Collectibles System (Boba tea, Prime hydration, Golden skateboards, Gamer Headset)
+  const kidCollectibles = new ModernKidCollectiblesSystem(scene, (pickup) => {
+    callbacks.onKidCollectibleCollected?.(pickup);
+    kidDrone.triggerStuntCheer();
+    callbacks.onStuntReward(pickup.xpReward, `COLLECTED ${pickup.name.toUpperCase()}!`);
+  });
 
   // 3. Dynamic Weather Visual Effects System (Rain particles, road splashes, puddles, tire spray)
   const weatherEffects = new DynamicWeatherEffects(scene);
@@ -643,46 +741,69 @@ export function createCityGameScene(
         }
       }
     } else if (s.isOnBike) {
-      // Modern Car Driving Mode
-      playerCar.group.position.set(s.x, s.y, s.z);
-      playerCar.group.rotation.set(0, 0, 0);
-      playerCar.group.rotateY(s.heading);
-      playerCar.group.rotateX(s.pitchAngle * 0.4);
+      if (playerCar.group.visible) {
+        // Modern Car Driving Mode
+        playerCar.group.position.set(s.x, s.y, s.z);
+        playerCar.group.rotation.set(0, 0, 0);
+        playerCar.group.rotateY(s.heading);
+        playerCar.group.rotateX(s.pitchAngle * 0.4);
 
-      playerCar.setBraking(s.isBraking);
-      playerCar.updateAnimation(
-        s.speed,
-        s.rpmRatio,
-        currentInputs.steer,
-        s.isBraking,
-        s.isNitroActive,
-        delta,
-        currentTimeOfDay,
-        currentWeather,
-        currentInputs.throttle,
-        currentInputs.reverse
-      );
-      // Synchronize active aerodynamic downforce and airbrake to physics engine
-      const downforceKg = playerCar.getActiveAeroDownforceKg();
-      const aeroAngle = playerCar.getActiveAeroAngle();
-      const isAirbrake = playerCar.isAirbrakeActive();
-      physics.setAeroDownforce(aeroAngle, downforceKg, isAirbrake);
+        playerCar.setBraking(s.isBraking);
+        playerCar.updateAnimation(
+          s.speed,
+          s.rpmRatio,
+          currentInputs.steer,
+          s.isBraking,
+          s.isNitroActive,
+          delta,
+          currentTimeOfDay,
+          currentWeather,
+          currentInputs.throttle,
+          currentInputs.reverse
+        );
+        // Synchronize active aerodynamic downforce and airbrake to physics engine
+        const downforceKg = playerCar.getActiveAeroDownforceKg();
+        const aeroAngle = playerCar.getActiveAeroAngle();
+        const isAirbrake = playerCar.isAirbrakeActive();
+        physics.setAeroDownforce(aeroAngle, downforceKg, isAirbrake);
 
-      // Record driving timeline frame for 30-second Cinematic Replay
-      globalReplayRecorder.recordFrame(
-        s,
-        currentInputs,
-        {
-          gear: playerCar.getCurrentGear?.() || (Math.abs(s.speed) < 1 ? 'P' : 'D1'),
-          aeroAngle,
-          downforceKg,
-          isAirbrake,
-          carStyle: playerCar.carStyle,
-          driveMode: playerCar.driveMode,
-          ambientColor: playerCar.ambientLightColor,
-        },
-        delta
-      );
+        // Record driving timeline frame for 30-second Cinematic Replay
+        globalReplayRecorder.recordFrame(
+          s,
+          currentInputs,
+          {
+            gear: playerCar.getCurrentGear?.() || (Math.abs(s.speed) < 1 ? 'P' : 'D1'),
+            aeroAngle,
+            downforceKg,
+            isAirbrake,
+            carStyle: playerCar.carStyle,
+            driveMode: playerCar.driveMode,
+            ambientColor: playerCar.ambientLightColor,
+          },
+          delta
+        );
+      } else {
+        // Motorcycle / Kid Cyber-Glider Driving Mode
+        bikeModel.group.position.set(s.x, s.y, s.z);
+        bikeModel.group.rotation.set(0, 0, 0);
+        bikeModel.group.rotateY(s.heading);
+        bikeModel.group.rotateZ(-s.leanAngle * (Math.PI / 180));
+        bikeModel.group.rotateX(s.pitchAngle);
+
+        bikeModel.setBraking(s.isBraking);
+        bikeModel.updateAnimation(
+          s.speed,
+          s.rpmRatio,
+          currentInputs.steer,
+          s.leanAngle,
+          s.isBraking,
+          s.isNitroActive,
+          delta,
+          false,
+          false,
+          world
+        );
+      }
     } else {
       // Autonomous On-Foot Human Mode:
       // A. Keep parked modern car stationary at its parked spot
@@ -843,6 +964,16 @@ export function createCityGameScene(
 
     // Calculate dynamic solar position, shadow frustum, normal-bias & realistic daylight shift
     sunShadowSystem.update(delta, currentTimeOfDay, s.x, s.y, s.z);
+
+    // 14. Update Modern Kid Collectibles System & Companion Drone
+    kidCollectibles.update(delta, s.x, s.y, s.z);
+    kidDrone.update(
+      delta,
+      { x: s.x, y: s.y, z: s.z },
+      s.heading,
+      s.speed,
+      !s.isGrounded || s.wheelieAngle > 0.1
+    );
 
     renderer.render(scene, camera);
   };
@@ -1031,7 +1162,12 @@ export function createCityGameScene(
     bikeModel.dispose();
     bikeModel = createBikeModel(newBike as any, { isPlayer: true, initialDamage: currentDamage });
     bikeModel.updateDayNightAndWeather?.(currentTimeOfDay, currentWeather);
-    bikeModel.group.visible = false;
+    scene.add(bikeModel.group);
+
+    const isSupercar = newBike.category === 'German Supercar';
+    playerCar.group.visible = isSupercar;
+    bikeModel.group.visible = !isSupercar;
+
     const newStyle: CarDesignStyle =
       newBike.id.includes('benz') || newBike.brand?.toUpperCase().includes('BENZ') || newBike.brand?.toUpperCase().includes('MERCEDES')
         ? 'benz_amg'
@@ -1102,7 +1238,8 @@ export function createCityGameScene(
   const dispose = () => {
     stop();
     window.removeEventListener('resize', handleResize);
-    renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
+    canvas.removeEventListener('webglcontextlost', handleContextLost);
+    canvas.removeEventListener('webglcontextrestored', handleContextRestored);
     scene.remove(bikeModel.rider.group);
     scene.remove(playerCar.group);
     playerCar.dispose();
@@ -1115,9 +1252,12 @@ export function createCityGameScene(
     roadHazards.clear();
     tollPlaza.dispose();
     propCarManager.dispose();
+    kidDrone.dispose();
+    kidCollectibles.dispose();
+    // Cleanly dispose renderer without artificially triggering context loss extension
     renderer.dispose();
-    if (renderer.domElement.parentElement) {
-      renderer.domElement.parentElement.removeChild(renderer.domElement);
+    if (canvas.parentElement) {
+      canvas.parentElement.removeChild(canvas);
     }
   };
 
@@ -1230,6 +1370,13 @@ export function createCityGameScene(
         driveMode: lastReplayFrame.driveMode,
       };
     },
+    toggleCompanionDrone: (enabled: boolean) => {
+      kidDrone.setEnabled(enabled);
+    },
+    setDroneSkin: (skin: DroneSkinId) => {
+      kidDrone.setSkin(skin);
+    },
+    getCollectiblesStatus: () => kidCollectibles.getItemsStatus(),
     dispose,
   };
 }
