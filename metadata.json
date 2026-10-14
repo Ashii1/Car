@@ -1,0 +1,6 @@
+{
+  "name": "Street Riders: Open City",
+  "description": "Open-world 3D motorcycle action and exploration game featuring seamless open city driving, dynamic traffic and pedestrians, missions, day/night cycle, police pursuit, and bike customization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
