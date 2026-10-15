@@ -92,6 +92,9 @@ export interface CityHUDProps {
   onOpenDailyChallenges?: () => void;
   onOpenKidGearModal?: () => void;
   isStreamerMode?: boolean;
+  onToggleVehicleType?: () => void;
+  isCarActive?: boolean;
+  onOpenSettings?: () => void;
 }
 
 export const CityHUD: React.FC<CityHUDProps> = ({
@@ -111,6 +114,9 @@ export const CityHUD: React.FC<CityHUDProps> = ({
   onOpenDailyChallenges,
   onOpenKidGearModal,
   isStreamerMode,
+  onToggleVehicleType,
+  isCarActive,
+  onOpenSettings,
   onOpenMap,
   onOpenMissions,
   onOpenGarage,
@@ -239,10 +245,6 @@ export const CityHUD: React.FC<CityHUDProps> = ({
   const effectiveGear = isCarReversing ? 'R' : (currentGear || autoGear);
   const gear = effectiveGear.replace('D', '');
   const nitro = Math.round(playerState.nitroAmount ?? 100);
-  const overallDamage = bikeDamage ? Math.max(0, Math.min(100, bikeDamage.overallDamage)) : 0;
-  const healthPercent = Math.max(0, 100 - Math.round(overallDamage));
-  const damageRatio = overallDamage / 100;
-  const pulseSpeed = Math.max(0.75, 2.4 - damageRatio * 1.5);
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none z-20 flex flex-col justify-between overflow-hidden">
@@ -254,41 +256,7 @@ export const CityHUD: React.FC<CityHUDProps> = ({
         stuntScore={playerState.stuntScore || 0}
       />
 
-      {/* =============================================================
-          SUBTLE RED PULSATING DAMAGE BORDER WARNING EFFECT
-          Intensifies intuitively as motorcycle / vehicle damage increases
-          ============================================================= */}
-      {overallDamage > 0 && (
-        <div
-          className="fixed inset-0 pointer-events-none z-50 transition-all duration-300 damage-warning-pulsing overflow-hidden"
-          style={{
-            boxShadow: `inset 0 0 ${16 + damageRatio * 64}px ${6 + damageRatio * 20}px rgba(239, 68, 68, ${0.18 + damageRatio * 0.45})`,
-            border: `${Math.max(2, Math.round(1.5 + damageRatio * 4))}px solid rgba(239, 68, 68, ${0.25 + damageRatio * 0.6})`,
-            ['--damage-min-op' as any]: `${0.2 + damageRatio * 0.25}`,
-            ['--damage-max-op' as any]: `${0.6 + damageRatio * 0.35}`,
-            ['--damage-speed' as any]: `${pulseSpeed}s`,
-          }}
-          aria-hidden="true"
-        >
-          {/* Subtle Corner Hazard Brackets for Medium to High Damage */}
-          {overallDamage > 25 && (
-            <>
-              <div className="absolute top-2 left-2 w-6 sm:w-8 h-6 sm:h-8 border-t-2 border-l-2 border-red-500/80 pointer-events-none" />
-              <div className="absolute top-2 right-2 w-6 sm:w-8 h-6 sm:h-8 border-t-2 border-r-2 border-red-500/80 pointer-events-none" />
-              <div className="absolute bottom-2 left-2 w-6 sm:w-8 h-6 sm:h-8 border-b-2 border-l-2 border-red-500/80 pointer-events-none" />
-              <div className="absolute bottom-2 right-2 w-6 sm:w-8 h-6 sm:h-8 border-b-2 border-r-2 border-red-500/80 pointer-events-none" />
-            </>
-          )}
 
-          {/* Tactical damage status badge when critically damaged */}
-          {overallDamage >= 60 && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-red-950/95 border border-red-500 text-red-200 text-[9px] font-mono font-black tracking-widest uppercase shadow-[0_0_15px_rgba(239,68,68,0.8)] backdrop-blur-md flex items-center gap-1.5 animate-pulse">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
-              <span>CRITICAL VEHICLE DAMAGE: {Math.round(overallDamage)}%</span>
-            </div>
-          )}
-        </div>
-      )}
       {/* =============================================================
           1. TOP BAR: CLEAN & UNCLUTTERED STATUS + ERGONOMIC ACTIONS
           ============================================================= */}
@@ -301,11 +269,11 @@ export const CityHUD: React.FC<CityHUDProps> = ({
               {currentDistrict}
             </span>
             <span className="text-zinc-600">•</span>
-            {/* Health */}
-            <div className="flex items-center gap-1">
+            {/* Pristine Condition */}
+            <div className="flex items-center gap-1 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30">
               <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="font-mono-num font-bold text-xs text-emerald-300">
-                {healthPercent}%
+              <span className="font-mono-num font-bold text-[10px] text-emerald-300">
+                100% PRISTINE
               </span>
             </div>
             {/* Wanted Stars */}
@@ -445,6 +413,26 @@ export const CityHUD: React.FC<CityHUDProps> = ({
 
             {/* Essential Controls Capsule (Vehicle switcher, Drive mode, Camera, Replay, Menu) */}
             <div className="flex items-center gap-1 sm:gap-1.5 bg-black/90 p-1 sm:p-1.5 rounded-2xl border border-white/20 backdrop-blur-md shadow-2xl">
+              {/* Master Vehicle Switcher (Car ⇄ Motorcycle) */}
+              {onToggleVehicleType && (
+                <button
+                  onClick={() => {
+                    soundEngine.playUIClick();
+                    onToggleVehicleType();
+                  }}
+                  className={`h-8 sm:h-8.5 px-2.5 sm:px-3 rounded-xl text-[9px] sm:text-[10px] font-race font-bold transition-all flex items-center gap-1.5 cursor-pointer border shrink-0 ${
+                    isCarActive
+                      ? 'bg-gradient-to-r from-cyan-900/90 to-blue-900/90 border-cyan-400 text-white shadow-[0_0_15px_rgba(6,182,212,0.5)]'
+                      : 'bg-gradient-to-r from-orange-950/90 to-amber-950/90 border-orange-400 text-white shadow-[0_0_15px_rgba(249,115,22,0.5)]'
+                  }`}
+                  title="Switch between Sports Car and Motorcycle (or press Key 'V')"
+                >
+                  <span className="text-xs">{isCarActive ? '🏎️' : '🏍️'}</span>
+                  <span className="font-black whitespace-nowrap">{isCarActive ? 'SPORTS CAR' : 'MOTORCYCLE'}</span>
+                  <span className="text-[8px] font-mono text-cyan-300 bg-black/50 px-1 py-0.2 rounded border border-white/10 hidden sm:inline">[V]</span>
+                </button>
+              )}
+
               {/* German Car Model Quick Toggle (BMW M60 ⇄ AMG GT) */}
               {playerState.isOnBike && onSwitchCarStyle && (
                 <button
@@ -666,8 +654,6 @@ export const CityHUD: React.FC<CityHUDProps> = ({
                 className={`w-8 sm:w-8.5 h-8 sm:h-8.5 rounded-xl border flex items-center justify-center active:scale-95 transition-all cursor-pointer relative shrink-0 ${
                   isMenuOpen
                     ? 'border-cyan-400 bg-cyan-950/90 text-cyan-200 shadow-[0_0_14px_rgba(6,182,212,0.6)]'
-                    : bikeDamage && bikeDamage.overallDamage > 0
-                    ? 'border-red-500 bg-red-950/80 text-red-300 animate-pulse'
                     : 'border-white/20 hover:border-white text-zinc-300 hover:text-white bg-zinc-900/80'
                 }`}
                 title={isMenuOpen ? 'Close Menu' : 'Open Tools & Settings Menu'}
@@ -754,11 +740,7 @@ export const CityHUD: React.FC<CityHUDProps> = ({
                   setIsMenuOpen(false);
                   onOpenGarage();
                 }}
-                className={`w-full px-2.5 py-1.5 rounded-xl border flex items-center justify-between text-xs cursor-pointer active:scale-95 transition-all ${
-                  bikeDamage && bikeDamage.overallDamage > 0
-                    ? 'border-red-500/80 bg-red-950/80 text-red-200'
-                    : 'border-white/10 hover:border-orange-400 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200'
-                }`}
+                className="w-full px-2.5 py-1.5 rounded-xl border border-white/10 hover:border-orange-400 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-200 flex items-center justify-between text-xs cursor-pointer active:scale-95 transition-all"
               >
                 <div className="flex items-center gap-2">
                   <Wrench className="w-3.5 h-3.5 text-orange-400" />
@@ -809,6 +791,23 @@ export const CityHUD: React.FC<CityHUDProps> = ({
                   <span className="font-race font-bold text-[10px]">{isMuted ? 'AUDIO MUTED' : 'AUDIO ACTIVE'}</span>
                 </div>
               </button>
+
+              {/* Settings & Vehicle Changer */}
+              {onOpenSettings && (
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onOpenSettings();
+                  }}
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-cyan-500/50 hover:border-cyan-400 bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-200 flex items-center justify-between text-xs cursor-pointer active:scale-95 transition-all shadow-md"
+                >
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="font-race font-bold text-[10px]">SETTINGS / CAR & BIKE</span>
+                  </div>
+                  <span className="text-[8px] font-mono text-cyan-400">⚡ 60FPS</span>
+                </button>
+              )}
 
               {/* Pause Game */}
               {onPause && (

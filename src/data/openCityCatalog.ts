@@ -574,8 +574,8 @@ export const INITIAL_PLAYER_PROFILE: PlayerOpenCityProfile = {
   xp: 150,
   xpToNextLevel: 1000,
   cash: 12500,
-  currentBikeId: 'kid_cyber_glider',
-  ownedBikeIds: ['kid_cyber_glider', 'echo_300', 'bmw_m8_comp', 'benz_amg_gt63'],
+  currentBikeId: 'bmw_m8_comp',
+  ownedBikeIds: ['bmw_m8_comp', 'benz_amg_gt63', 'echo_300', 'kid_cyber_glider'],
   completedMissionIds: [],
   discoveredDistricts: ['downtown', 'residential'],
   totalDistanceRiddenKm: 12.4,
@@ -589,14 +589,14 @@ export const INITIAL_PLAYER_PROFILE: PlayerOpenCityProfile = {
 };
 
 export const DEFAULT_OPEN_CITY_SETTINGS: GameSettings = {
-  graphicsQuality: 'high',
+  graphicsQuality: 'medium',
   fpsTarget: 60,
   steeringSensitivity: 1.0,
   speedUnit: 'kmh',
   sfxVolume: 0.85,
   musicVolume: 0.65,
   engineVolume: 0.9,
-  motionBlur: true,
+  motionBlur: false,
   cameraShake: true,
   controlsLayout: 'buttons',
 };

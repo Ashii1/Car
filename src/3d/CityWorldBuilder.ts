@@ -595,8 +595,8 @@ export function buildCityWorld(scene: THREE.Scene): CityWorldInstance {
   const sunLight = new THREE.DirectionalLight(0xfff7ed, 2.3);
   sunLight.position.set(220, 320, 160);
   sunLight.castShadow = true;
-  sunLight.shadow.mapSize.width = 2048;
-  sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.mapSize.width = 1024;
+  sunLight.shadow.mapSize.height = 1024;
   sunLight.shadow.camera.near = 5;
   sunLight.shadow.camera.far = 600;
   const shadowDist = 140;

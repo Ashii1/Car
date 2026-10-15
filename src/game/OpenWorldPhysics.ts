@@ -245,8 +245,9 @@ export class OpenWorldPhysicsEngine {
     }
 
     // 3. Transmission Gear Gate & Acceleration Mechanics (P, R, N, D)
-    const effectiveTopSpeed = this.stats.topSpeed + (s.isNitroActive ? 35 : 0);
-    const accelRate = (this.stats.acceleration / 50) * (s.isNitroActive ? 1.6 : 1.0) * 24;
+    const effectiveTopSpeed = this.stats.topSpeed + (s.isNitroActive ? 40 : 0);
+    // Punchy, responsive acceleration for rapid thrilling takeoffs (0-100 in ~3.0s)
+    const accelRate = (this.stats.acceleration / 45) * (s.isNitroActive ? 1.8 : 1.0) * 36;
     const handlingProfile = this.stats.handlingCharacteristics;
 
     // Detect target gear from transmission or automatic driving intent
@@ -275,7 +276,7 @@ export class OpenWorldPhysicsEngine {
       else if (s.speed < 0) s.speed = Math.min(0, s.speed + drag * delta);
 
       if (inputs.brake > 0) {
-        const brakeForce = (40 + (this.stats.braking / 100) * 45) * inputs.brake;
+        const brakeForce = (50 + (this.stats.braking / 100) * 50) * inputs.brake;
         if (s.speed > 0) s.speed = Math.max(0, s.speed - brakeForce * delta);
         else if (s.speed < 0) s.speed = Math.min(0, s.speed + brakeForce * delta);
       }
@@ -287,25 +288,22 @@ export class OpenWorldPhysicsEngine {
       }
     } else if (isReverseGear) {
       // EXPLICIT REVERSE GEAR [R]:
-      // Stepping on Gas [W] OR pressing Reverse Pedal [S] accelerates BACKWARD!
-      // When moving backward, pressing Handbrake or Brake pedal brakes back to 0!
       s.isReversing = true;
-      const maxReverseKmh = -55.0;
-      const reverseAccel = accelRate * 0.85;
+      const maxReverseKmh = -65.0;
+      const reverseAccel = accelRate * 0.9;
       const reverseDemand = Math.max(inputs.throttle, inputs.reverse ? 1.0 : (Math.abs(s.speed) < 1.0 ? inputs.brake : 0));
 
       if (reverseDemand > 0) {
         s.isBraking = false;
         s.speed = Math.max(maxReverseKmh, s.speed - reverseAccel * reverseDemand * delta);
-        s.rpm = THREE.MathUtils.lerp(s.rpm, 1200 + (Math.abs(s.speed) / 55) * 5200, delta * 12.0);
-      } else if (inputs.brake > 0 && s.speed < -1.0) {
+        s.rpm = THREE.MathUtils.lerp(s.rpm, 1200 + (Math.abs(s.speed) / 65) * 5200, delta * 12.0);
+      } else if (inputs.brake > 0 && s.speed < -0.5) {
         // Active braking to stop while reversing
         s.isBraking = true;
-        const brakeForce = (45 + (this.stats.braking / 100) * 45) * inputs.brake;
+        const brakeForce = (50 + (this.stats.braking / 100) * 50) * inputs.brake;
         s.speed = Math.min(0, s.speed + brakeForce * delta);
         s.rpm = THREE.MathUtils.lerp(s.rpm, 950, delta * 8.0);
       } else {
-        // Natural rolling resistance in reverse
         s.isBraking = false;
         const drag = 6.0;
         if (s.speed < 0) s.speed = Math.min(0, s.speed + drag * delta);
@@ -314,58 +312,54 @@ export class OpenWorldPhysicsEngine {
       }
     } else {
       // FORWARD DRIVE (D / D1..D6):
-      // Automatic Dual-Action Reverse:
-      // When stationary (speed <= 1.0 km/h) and user holds [S] / Down / Reverse pedal:
-      // The car automatically engages reverse and drives backward!
-      const isStoppedOrReversing = s.speed <= 0.8;
-      const isPressingReverseOrBrakeWhileStopped = isStoppedOrReversing && (inputs.brake > 0.05 || inputs.reverse);
-
-      if (isPressingReverseOrBrakeWhileStopped && inputs.throttle <= 0) {
-        // Reverse acceleration in Drive mode
+      // Clean forward driving and predictable braking:
+      if (s.speed > 0.2 && inputs.brake > 0) {
+        // Active forward braking - stops vehicle cleanly to 0 km/h without sudden jerky reversing
+        s.isBraking = true;
+        s.isReversing = false;
+        const brakeForce = (55 + (this.stats.braking / 100) * 55) * inputs.brake;
+        const airbrakeDrag = (this.isAirbrakeActive ? Math.min(32, (this.aeroDownforceKg * 0.32)) : 0) * inputs.brake;
+        s.speed = Math.max(0, s.speed - (brakeForce + airbrakeDrag) * delta);
+        if (s.speed < 0.25) {
+          s.speed = 0;
+        }
+      } else if (s.speed < -0.2 && inputs.throttle > 0) {
+        // Pressing Gas [W] while rolling backward: quickly arrest reverse speed and launch forward
+        s.isBraking = true;
+        s.isReversing = false;
+        s.speed = Math.min(0, s.speed + 75.0 * delta);
+        if (s.speed >= -0.25) {
+          s.speed = 0.5;
+        }
+      } else if (inputs.reverse || (s.speed <= 0.2 && inputs.brake > 0.25 && inputs.throttle <= 0)) {
+        // Intentional reverse when stationary
         s.isReversing = true;
         s.isBraking = false;
-        const maxReverseKmh = -50.0;
+        const maxReverseKmh = -55.0;
         const revPower = Math.max(inputs.brake, inputs.reverse ? 1.0 : 0);
-        const reverseAccel = accelRate * 0.8;
-        s.speed = Math.max(maxReverseKmh, s.speed - reverseAccel * revPower * delta);
-        s.rpm = THREE.MathUtils.lerp(s.rpm, 1200 + (Math.abs(s.speed) / 50) * 4800, delta * 10.0);
-      } else if (s.speed < -0.8 && inputs.throttle > 0) {
-        // Driver pressed Gas [W] while moving in reverse: brake backward momentum first, then drive forward
-        s.isBraking = true;
-        const brakeForce = (55 + (this.stats.braking / 100) * 45) * inputs.throttle;
-        s.speed = Math.min(0, s.speed + brakeForce * delta);
-        if (s.speed >= -0.5) {
-          s.speed = 0;
-          s.isReversing = false;
+        s.speed = Math.max(maxReverseKmh, s.speed - accelRate * 0.85 * revPower * delta);
+        s.rpm = THREE.MathUtils.lerp(s.rpm, 1200 + (Math.abs(s.speed) / 55) * 4800, delta * 10.0);
+      } else if (inputs.throttle > 0 && !inputs.brake) {
+        // Forward Acceleration: high torque punch & smooth climb
+        s.isReversing = false;
+        s.isBraking = false;
+        const speedRatio = Math.max(0, s.speed / effectiveTopSpeed);
+        const curveExp = handlingProfile?.curveExponent ?? 1.0;
+        let curveFactor = 1.0;
+        if (curveExp > 1.0) {
+          curveFactor = 0.65 + Math.pow(Math.max(0.05, speedRatio), curveExp - 1.0) * 0.75;
+        } else if (curveExp < 1.0) {
+          curveFactor = 0.85 + Math.pow(Math.max(0.05, 1.0 - speedRatio), 1.0 - curveExp) * 0.55;
         }
+        const torque = Math.max(0.35, (1.0 - speedRatio * 0.65) * curveFactor);
+        s.speed = Math.min(effectiveTopSpeed, s.speed + accelRate * torque * inputs.throttle * delta);
       } else {
-        // Normal Forward Driving & Braking
-        s.isReversing = s.speed < -0.4;
-        if (inputs.throttle > 0 && !inputs.brake) {
-          const speedRatio = Math.max(0, s.speed / effectiveTopSpeed);
-          const curveExp = handlingProfile?.curveExponent ?? 1.0;
-          let curveFactor = 1.0;
-          if (curveExp > 1.0) {
-            curveFactor = 0.55 + Math.pow(Math.max(0.05, speedRatio), curveExp - 1.0) * 0.75;
-          } else if (curveExp < 1.0) {
-            curveFactor = 0.75 + Math.pow(Math.max(0.05, 1.0 - speedRatio), 1.0 - curveExp) * 0.55;
-          }
-          const torque = Math.max(0.18, (1.0 - speedRatio * 0.78) * curveFactor);
-          s.speed = Math.min(effectiveTopSpeed, s.speed + accelRate * torque * inputs.throttle * delta);
-        } else {
-          const drag = 4.0 + Math.pow(Math.abs(s.speed) / 100, 2) * 5.0;
-          if (s.speed > 0) s.speed = Math.max(0, s.speed - drag * delta);
-          else if (s.speed < 0) s.speed = Math.min(0, s.speed + drag * delta);
-        }
-
-        // Braking in Drive while moving forward
-        s.isBraking = inputs.brake > 0.1;
-        if (s.isBraking && s.speed > 0.1) {
-          const brakeForce = (40 + (this.stats.braking / 100) * 45) * inputs.brake;
-          const airbrakeDrag = (this.isAirbrakeActive ? Math.min(32, (this.aeroDownforceKg * 0.32)) : 0) * inputs.brake;
-          const totalBrake = brakeForce + airbrakeDrag;
-          s.speed = Math.max(0, s.speed - totalBrake * delta);
-        }
+        // Natural rolling coast
+        s.isReversing = s.speed < -0.2;
+        s.isBraking = false;
+        const drag = 3.5 + Math.pow(Math.abs(s.speed) / 100, 2) * 4.5;
+        if (s.speed > 0) s.speed = Math.max(0, s.speed - drag * delta);
+        else if (s.speed < 0) s.speed = Math.min(0, s.speed + drag * delta);
       }
     }
 
@@ -392,55 +386,27 @@ export class OpenWorldPhysicsEngine {
       s.rpm = 1500 + s.rpmRatio * 13500;
     }
 
-    // 6. Dynamic Surface Type & Tire Friction Model
+    // 6. Dynamic Surface Type & High Grip Racing Friction Model
     const isPotholeActive = this.potholeShake > 0.06;
     const isRaining = this.currentWeather === 'rain';
 
-    // Comprehensive paved road corridor detection (all 7 NS avenues & 10 EW boulevards)
-    const onHighway = Math.abs(s.x) <= 15.0;
-    const onServiceRoad = Math.abs(s.x - 24) <= 5.5 || Math.abs(s.x - -24) <= 5.5;
-    const onNSAvenue = (
-      Math.abs(s.x - -720) <= 9.0 ||
-      Math.abs(s.x - -420) <= 9.0 ||
-      Math.abs(s.x - -200) <= 9.0 ||
-      Math.abs(s.x - 220) <= 10.0 ||
-      Math.abs(s.x - 450) <= 9.0 ||
-      Math.abs(s.x - 720) <= 10.0
-    );
-    const onEWBoulevard = (
-      Math.abs(s.z - -850) <= 9.0 ||
-      Math.abs(s.z - -650) <= 9.0 ||
-      Math.abs(s.z - -380) <= 9.0 ||
-      Math.abs(s.z - -80) <= 10.0 ||
-      Math.abs(s.z - 220) <= 9.0 ||
-      Math.abs(s.z - 520) <= 10.0 ||
-      Math.abs(s.z - 880) <= 9.0 ||
-      Math.abs(s.z - 1400) <= 10.0 ||
-      Math.abs(s.z - 1900) <= 9.0 ||
-      Math.abs(s.z - 2380) <= 12.0
-    );
-    const onPavedRoad = onHighway || onServiceRoad || onNSAvenue || onEWBoulevard;
-
-    let baseFriction = 1.05;
+    // High performance paved asphalt across open city roads and avenues
+    let baseFriction = 1.35;
     let surface: 'asphalt' | 'wet_asphalt' | 'dirt' | 'slick' = 'asphalt';
 
     if (isPotholeActive) {
       surface = 'slick';
-      baseFriction = 0.38;
-    } else if (!onPavedRoad) {
-      surface = 'dirt';
-      baseFriction = isRaining ? 0.48 : 0.62;
+      baseFriction = 0.55;
     } else if (isRaining) {
       surface = 'wet_asphalt';
-      baseFriction = 0.68;
+      baseFriction = 1.10;
     } else {
       surface = 'asphalt';
-      baseFriction = 1.05;
+      baseFriction = 1.35;
     }
 
-    const gripStatFactor = 0.75 + (this.stats.grip / 100) * 0.45;
-    // Aerodynamic downforce grip multiplier (improves high-speed handling and traction)
-    const downforceGripBonus = 1.0 + Math.min(0.24, (this.aeroDownforceKg / 140) * 0.24);
+    const gripStatFactor = 0.85 + (this.stats.grip / 100) * 0.45;
+    const downforceGripBonus = 1.0 + Math.min(0.25, (this.aeroDownforceKg / 140) * 0.25);
     const mu = baseFriction * gripStatFactor * downforceGripBonus;
     s.surfaceType = surface;
     s.surfaceFriction = mu;
@@ -448,39 +414,26 @@ export class OpenWorldPhysicsEngine {
     s.activeAeroDownforceKg = this.aeroDownforceKg;
     s.isAirbrakeActive = this.isAirbrakeActive;
 
-    // 7. Dynamic Steering, Slip Angle, & Cornering Grip Limits
-    const steerResponsiveness = (handlingProfile?.throttleResponsiveness ? handlingProfile.throttleResponsiveness / 100 : 0.9) * 8.5;
+    // 7. Dynamic Responsive Steering & Sharp Cornering Control
+    const steerResponsiveness = 18.0;
     this.currentSteer = THREE.MathUtils.lerp(this.currentSteer, inputs.steer, delta * steerResponsiveness);
 
     let speedTurnFactor = 1.0;
     if (absSpeed < 3.0) {
-      // Agile power steering: provides full responsive turning authority even from standstill/low-speed maneuvers!
-      speedTurnFactor = THREE.MathUtils.lerp(0.88, 1.05, absSpeed / 3.0);
-    } else if (absSpeed < 35.0) {
-      speedTurnFactor = THREE.MathUtils.lerp(1.05, 1.28, absSpeed / 35.0);
+      speedTurnFactor = 1.35; // Great turning authority for maneuvers
+    } else if (absSpeed < 45.0) {
+      speedTurnFactor = THREE.MathUtils.lerp(1.35, 1.45, absSpeed / 45.0);
     } else {
-      speedTurnFactor = 1.28 / (1.0 + (absSpeed - 35.0) * 0.014);
+      speedTurnFactor = 1.45 / (1.0 + (absSpeed - 45.0) * 0.005);
     }
 
-    // Unique Turning Radius & Agile Geometry Scaling (baseline 3.2m)
-    const turningRadius = handlingProfile?.turningRadius ?? 3.2;
-    const turnRadiusFactor = THREE.MathUtils.clamp(3.2 / turningRadius, 0.72, 1.48);
-    const baseTurnSpeed = 1.95 * turnRadiusFactor;
+    const turningRadius = handlingProfile?.turningRadius ?? 2.8;
+    const turnRadiusFactor = THREE.MathUtils.clamp(3.0 / turningRadius, 0.9, 1.6);
+    const baseTurnSpeed = 2.85 * turnRadiusFactor;
     const demandedTurnRate = this.currentSteer * baseTurnSpeed * speedTurnFactor;
 
-    // Centripetal acceleration demanded by turn vs. Maximum tire grip limit (Pacejka model)
-    const vFwd = s.speed / 3.6; // m/s
-    const vFwdAbs = Math.abs(vFwd);
-    const demandedLatAccel = vFwdAbs * Math.abs(demandedTurnRate);
-    const leanRatio = Math.abs(s.leanAngle) / 0.84;
-    const maxLatAccel = mu * 9.81 * (1.0 - leanRatio * 0.18);
-
-    // Front tire understeer when exceeding available traction (turning pushes wider)
-    let effectiveTurnRate = demandedTurnRate;
-    if (demandedLatAccel > maxLatAccel && vFwdAbs > 2.0) {
-      const gripRatio = Math.max(0.42, maxLatAccel / (demandedLatAccel + 0.001));
-      effectiveTurnRate = demandedTurnRate * gripRatio;
-    }
+    // Direct, highly responsive turning that gives player confident control
+    const effectiveTurnRate = demandedTurnRate;
 
     const canTurn = absSpeed > 0.05 || inputs.throttle > 0 || Math.abs(this.currentSteer) > 0.05;
     if (canTurn) {
@@ -489,31 +442,33 @@ export class OpenWorldPhysicsEngine {
     }
 
     // Rear Tire Lateral Slip & Powerslide Drift Dynamics
+    const vFwd = s.speed / 3.6; // m/s
+    const vFwdAbs = Math.abs(vFwd);
+    const demandedLatAccel = vFwdAbs * Math.abs(demandedTurnRate);
+    const maxLatAccel = mu * 9.81;
     const excessLatG = Math.max(0, demandedLatAccel - maxLatAccel);
     const steerDir = Math.sign(this.currentSteer);
 
-    // Handbrake / Brake Slide Boost (pressing brake in turns kicks out the rear tire like in GTA/Asphalt)
-    const brakeDriftBoost = (s.isBraking && Math.abs(this.currentSteer) > 0.18 && vFwdAbs > 6.0) ? 2.8 : 1.0;
-    // Low-traction power-oversteer
-    const powerOversteer = (inputs.throttle > 0.7 && mu < 0.85 && Math.abs(this.currentSteer) > 0.25 && vFwdAbs > 10.0) ? 1.8 : 1.0;
+    // Handbrake / Brake Slide Boost (pressing brake in turns kicks out rear for fun arcade drift)
+    const brakeDriftBoost = (s.isBraking && Math.abs(this.currentSteer) > 0.25 && vFwdAbs > 6.0) ? 2.2 : 1.0;
 
-    if (excessLatG > 0.08 && vFwdAbs > 3.0) {
-      const slipAccel = -steerDir * excessLatG * 0.72 * brakeDriftBoost * powerOversteer;
+    if (excessLatG > 0.15 && vFwdAbs > 4.0) {
+      const slipAccel = -steerDir * excessLatG * 0.45 * brakeDriftBoost;
       this.lateralVel += slipAccel * delta;
-    } else if (s.isBraking && Math.abs(this.currentSteer) > 0.35 && vFwdAbs > 8.0) {
-      this.lateralVel += -steerDir * (12.0 / mu) * delta;
+    } else if (s.isBraking && Math.abs(this.currentSteer) > 0.4 && vFwdAbs > 8.0) {
+      this.lateralVel += -steerDir * (8.0 / mu) * delta;
     }
 
     // Counter-Steering Drift Catch (steering into the slide stabilizes drift angle)
     const isCounterSteer = (steerDir !== 0 && Math.sign(this.lateralVel) === steerDir);
     if (isCounterSteer) {
-      this.lateralVel = THREE.MathUtils.lerp(this.lateralVel, 0, delta * 3.8);
+      this.lateralVel = THREE.MathUtils.lerp(this.lateralVel, 0, delta * 4.5);
     }
 
     // Restoring Lateral Grip Damping (tires bite into pavement to stop sideways slide)
-    const lateralDamping = (mu * 7.2) + (isCounterSteer ? 3.2 : 0);
+    const lateralDamping = (mu * 8.5) + (isCounterSteer ? 4.0 : 0);
     this.lateralVel = THREE.MathUtils.lerp(this.lateralVel, 0, delta * lateralDamping);
-    this.lateralVel = Math.max(-14, Math.min(14, this.lateralVel));
+    this.lateralVel = Math.max(-10, Math.min(10, this.lateralVel));
 
     s.lateralVelocity = this.lateralVel;
     s.slipAngle = Math.atan2(this.lateralVel, vFwdAbs + 0.1);
@@ -568,25 +523,42 @@ export class OpenWorldPhysicsEngine {
     const nextX = s.x + worldVelX * delta;
     const nextZ = s.z + worldVelZ * delta;
 
-    // Obstacle collision prevention (building walls, pillars)
-    let collision = false;
+    // Smooth arcade wall sliding collision resolution (allows driving along walls without getting stuck)
+    let collisionX = false;
+    let collisionZ = false;
     for (const obs of this.world.obstacles) {
-      if (nextX >= obs.minX && nextX <= obs.maxX && nextZ >= obs.minZ && nextZ <= obs.maxZ) {
-        collision = true;
-        break;
+      if (nextX >= obs.minX && nextX <= obs.maxX && s.z >= obs.minZ && s.z <= obs.maxZ) {
+        collisionX = true;
       }
+      if (s.x >= obs.minX && s.x <= obs.maxX && nextZ >= obs.minZ && nextZ <= obs.maxZ) {
+        collisionZ = true;
+      }
+      if (collisionX && collisionZ) break;
     }
 
-    if (!collision) {
+    if (!collisionX) {
       s.x = nextX;
+    } else {
+      // Deflect along wall and scrub slight speed instead of dead-stop
+      s.speed *= 0.92;
+      this.lateralVel *= 0.5;
+    }
+
+    if (!collisionZ) {
       s.z = nextZ;
     } else {
-      // Impact reaction
-      if (absSpeed > 60) {
+      // Deflect along wall and scrub slight speed instead of dead-stop
+      s.speed *= 0.92;
+      this.lateralVel *= 0.5;
+    }
+
+    // Direct head-on corner collision impact
+    if (collisionX && collisionZ) {
+      if (absSpeed > 65) {
         this.triggerPoliceAlert();
       }
       onCollision?.(absSpeed);
-      s.speed = -s.speed * 0.25; // bounce back
+      s.speed = Math.sign(s.speed) * Math.min(Math.abs(s.speed) * 0.45, 12);
     }
 
     // 9. Gravity, Jumps & Stunt Ramps

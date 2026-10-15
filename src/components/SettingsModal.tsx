@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Volume2, VolumeX, Monitor, Sliders, Shield, Zap } from 'lucide-react';
-import { GameSettings } from '../types/game';
+import { X, Volume2, VolumeX, Monitor, Sliders, Zap, Car, Bike, Sparkles, Check, Gauge } from 'lucide-react';
+import { GameSettings } from '../types/openCity';
 import { soundEngine } from '../audio/SoundEngine';
 import { cityAudio } from '../audio/CityAudioEngine';
 
@@ -8,12 +8,16 @@ interface SettingsModalProps {
   settings: GameSettings;
   onUpdateSettings: (newSettings: GameSettings) => void;
   onClose: () => void;
+  currentVehicleId?: string;
+  onSelectVehicle?: (vehicleId: string) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onUpdateSettings,
   onClose,
+  currentVehicleId = 'bmw_m8_comp',
+  onSelectVehicle,
 }) => {
   const [isMuted, setIsMuted] = useState<boolean>(() => cityAudio.isMuted);
 
@@ -31,9 +35,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     cityAudio.setVolumes(updated.engineVolume, updated.sfxVolume, updated.musicVolume);
   };
 
+  const handleApplyFastMode = () => {
+    soundEngine.playUIClick();
+    const fastSettings: GameSettings = {
+      ...settings,
+      graphicsQuality: 'low',
+      motionBlur: false,
+      cameraShake: false,
+    };
+    onUpdateSettings(fastSettings);
+  };
+
+  const isCar = currentVehicleId === 'bmw_m8_comp' || currentVehicleId === 'benz_amg_gt63';
+  const isGlider = currentVehicleId === 'kid_cyber_glider';
+  const isBike = !isCar && !isGlider;
+
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md select-none">
-      <div className="max-w-xl w-full glass-panel p-6 md:p-8 rounded-3xl border border-white/20 shadow-2xl flex flex-col gap-6 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 bg-black/85 backdrop-blur-md select-none animate-fadeIn">
+      <div className="max-w-2xl w-full glass-panel p-6 md:p-8 rounded-3xl border border-white/20 shadow-2xl flex flex-col gap-5 max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div className="flex items-center gap-3">
@@ -42,7 +61,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <h2 className="font-race font-black text-2xl text-white">GAME SETTINGS</h2>
-              <span className="text-[10px] font-mono text-zinc-400">AUDIO, GRAPHICS & DRIVING CONTROLS</span>
+              <span className="text-[10px] font-mono text-zinc-400">VEHICLE CHOICE, PERFORMANCE & AUDIO</span>
             </div>
           </div>
 
@@ -57,11 +76,166 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        {/* Audio Sliders */}
-        <div className="space-y-4">
+        {/* 1. PRIMARY VEHICLE SELECTION (Car vs Bike vs Cyber-Glider) */}
+        <div className="space-y-3 bg-gradient-to-r from-cyan-950/40 via-blue-950/30 to-purple-950/40 p-4 rounded-2xl border border-cyan-500/30">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-race uppercase text-cyan-300 font-bold flex items-center gap-1.5 tracking-wider">
+              <Car className="w-4 h-4 text-cyan-400" /> ACTIVE VEHICLE TYPE (CAR vs BIKE)
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+              SWITCH INSTANTLY
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {/* OPTION 1: MODERN SPORTS CAR */}
+            <button
+              onClick={() => {
+                soundEngine.playUIClick();
+                cityAudio.ensureContext();
+                onSelectVehicle?.('bmw_m8_comp');
+              }}
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                isCar
+                  ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)] ring-1 ring-cyan-400'
+                  : 'bg-black/40 border-white/10 hover:border-white/30 hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center">
+                  <Car className="w-5 h-5" />
+                </div>
+                {isCar && (
+                  <span className="w-5 h-5 rounded-full bg-cyan-400 text-black flex items-center justify-center text-xs font-bold">
+                    <Check className="w-3.5 h-3.5" />
+                  </span>
+                )}
+              </div>
+              <div>
+                <div className="font-race font-bold text-sm text-white">SPORTS CAR</div>
+                <div className="text-[11px] font-mono text-cyan-200">Apex M8 / AMG Biturbo</div>
+                <div className="text-[9px] font-mono text-zinc-400 mt-1">Twin-Turbo • Aero Spoilers</div>
+              </div>
+            </button>
+
+            {/* OPTION 2: STREET MOTORCYCLE */}
+            <button
+              onClick={() => {
+                soundEngine.playUIClick();
+                cityAudio.ensureContext();
+                onSelectVehicle?.('echo_300');
+              }}
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                isBike
+                  ? 'bg-orange-500/20 border-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.3)] ring-1 ring-orange-400'
+                  : 'bg-black/40 border-white/10 hover:border-white/30 hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-lg bg-orange-500/20 text-orange-300 flex items-center justify-center">
+                  <Bike className="w-5 h-5" />
+                </div>
+                {isBike && (
+                  <span className="w-5 h-5 rounded-full bg-orange-400 text-black flex items-center justify-center text-xs font-bold">
+                    <Check className="w-3.5 h-3.5" />
+                  </span>
+                )}
+              </div>
+              <div>
+                <div className="font-race font-bold text-sm text-white">MOTORCYCLE</div>
+                <div className="text-[11px] font-mono text-orange-200">Echo 300 / Superbike</div>
+                <div className="text-[9px] font-mono text-zinc-400 mt-1">Agile Leaning • Wheelies</div>
+              </div>
+            </button>
+
+            {/* OPTION 3: CYBER-GLIDER (MODERN KIDS) */}
+            <button
+              onClick={() => {
+                soundEngine.playUIClick();
+                cityAudio.ensureContext();
+                onSelectVehicle?.('kid_cyber_glider');
+              }}
+              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                isGlider
+                  ? 'bg-pink-500/20 border-pink-400 shadow-[0_0_20px_rgba(236,72,153,0.3)] ring-1 ring-pink-400'
+                  : 'bg-black/40 border-white/10 hover:border-white/30 hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-300 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                {isGlider && (
+                  <span className="w-5 h-5 rounded-full bg-pink-400 text-black flex items-center justify-center text-xs font-bold">
+                    <Check className="w-3.5 h-3.5" />
+                  </span>
+                )}
+              </div>
+              <div>
+                <div className="font-race font-bold text-sm text-white">CYBER-GLIDER</div>
+                <div className="text-[11px] font-mono text-pink-200">Apex Neo-Kid Hover</div>
+                <div className="text-[9px] font-mono text-zinc-400 mt-1">Instant Torque • Stunts</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* 2. GRAPHICS FIDELITY & SPEED OPTIMIZER */}
+        <div className="space-y-3 pt-2 border-t border-white/10">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-race uppercase text-zinc-300 font-bold flex items-center gap-1.5">
+              <Monitor className="w-4 h-4 text-cyan-400" /> GRAPHICS & PERFORMANCE SPEED
+            </span>
+            <button
+              onClick={handleApplyFastMode}
+              className="px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-md"
+              title="Apply ultra-fast settings for maximum framerate and no lag"
+            >
+              <Zap className="w-3.5 h-3.5 text-emerald-400" />
+              <span>⚡ BOOST SPEED (FAST 60 FPS)</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2">
+            {(['low', 'medium', 'high', 'ultra'] as const).map((q) => {
+              const labels: Record<string, string> = {
+                low: 'LOW (MAX FPS)',
+                medium: 'MED (SMOOTH)',
+                high: 'HIGH (BALANCED)',
+                ultra: 'ULTRA (HD)',
+              };
+              return (
+                <button
+                  key={q}
+                  onClick={() => {
+                    soundEngine.playUIClick();
+                    handleChange('graphicsQuality', q);
+                  }}
+                  className={`py-2.5 px-2 rounded-xl text-[11px] font-mono font-bold uppercase transition-all cursor-pointer text-center ${
+                    settings.graphicsQuality === q
+                      ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20 font-black'
+                      : 'bg-zinc-900 text-zinc-400 border border-white/10 hover:text-white hover:bg-zinc-800'
+                  }`}
+                >
+                  {labels[q]}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] font-mono text-zinc-400">
+            {settings.graphicsQuality === 'low'
+              ? '⚡ Max performance: Shadows disabled for silky-smooth 60+ FPS on any computer or mobile browser.'
+              : settings.graphicsQuality === 'medium'
+              ? '⚡ Smooth performance: Optimized basic shadow filtering and native resolution.'
+              : '🌟 High-definition filtered shadows and rich atmospheric lighting.'}
+          </p>
+        </div>
+
+        {/* 3. Audio Mixer */}
+        <div className="space-y-3 pt-2 border-t border-white/10">
           <div className="flex items-center justify-between">
             <span className="text-xs font-race uppercase text-zinc-400 flex items-center gap-1.5">
-              <Volume2 className="w-4 h-4 text-orange-400" /> AUDIO MIXER
+              <Volume2 className="w-4 h-4 text-orange-400" /> AUDIO VOLUME
             </span>
             <button
               onClick={toggleMasterMute}
@@ -70,94 +244,70 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   ? 'bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30'
                   : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30'
               }`}
-              title="Toggle Master Sound Mute"
             >
               {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-              <span>{isMuted ? 'ALL AUDIO MUTED' : 'AUDIO ACTIVE'}</span>
+              <span>{isMuted ? 'ALL MUTED' : 'AUDIO ACTIVE'}</span>
             </button>
           </div>
 
-          {/* Engine Volume */}
-          <div>
-            <div className="flex justify-between text-xs font-mono mb-1">
-              <span className="text-zinc-300">Motorcycle Engine</span>
-              <span className="text-white">{Math.round(settings.engineVolume * 100)}%</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Engine Volume */}
+            <div className="bg-black/30 p-2.5 rounded-xl border border-white/5">
+              <div className="flex justify-between text-xs font-mono mb-1">
+                <span className="text-zinc-300">Engine Sound</span>
+                <span className="text-white">{Math.round(settings.engineVolume * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={settings.engineVolume}
+                onChange={(e) => handleChange('engineVolume', parseFloat(e.target.value))}
+                className="w-full accent-orange-500 cursor-pointer"
+              />
             </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={settings.engineVolume}
-              onChange={(e) => handleChange('engineVolume', parseFloat(e.target.value))}
-              className="w-full accent-orange-500 cursor-pointer"
-            />
-          </div>
 
-          {/* SFX / Tires / Nitro Volume */}
-          <div>
-            <div className="flex justify-between text-xs font-mono mb-1">
-              <span className="text-zinc-300">Sound Effects (Tires, Nitro, Wind)</span>
-              <span className="text-white">{Math.round(settings.sfxVolume * 100)}%</span>
+            {/* SFX Volume */}
+            <div className="bg-black/30 p-2.5 rounded-xl border border-white/5">
+              <div className="flex justify-between text-xs font-mono mb-1">
+                <span className="text-zinc-300">SFX (Tires, Nitro)</span>
+                <span className="text-white">{Math.round(settings.sfxVolume * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={settings.sfxVolume}
+                onChange={(e) => handleChange('sfxVolume', parseFloat(e.target.value))}
+                className="w-full accent-orange-500 cursor-pointer"
+              />
             </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={settings.sfxVolume}
-              onChange={(e) => handleChange('sfxVolume', parseFloat(e.target.value))}
-              className="w-full accent-orange-500 cursor-pointer"
-            />
-          </div>
 
-          {/* Music Volume */}
-          <div>
-            <div className="flex justify-between text-xs font-mono mb-1">
-              <span className="text-zinc-300">Electronic Racing OST</span>
-              <span className="text-white">{Math.round(settings.musicVolume * 100)}%</span>
+            {/* Music Volume */}
+            <div className="bg-black/30 p-2.5 rounded-xl border border-white/5">
+              <div className="flex justify-between text-xs font-mono mb-1">
+                <span className="text-zinc-300">Music OST</span>
+                <span className="text-white">{Math.round(settings.musicVolume * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={settings.musicVolume}
+                onChange={(e) => handleChange('musicVolume', parseFloat(e.target.value))}
+                className="w-full accent-orange-500 cursor-pointer"
+              />
             </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={settings.musicVolume}
-              onChange={(e) => handleChange('musicVolume', parseFloat(e.target.value))}
-              className="w-full accent-orange-500 cursor-pointer"
-            />
           </div>
         </div>
 
-        {/* Graphics Preset */}
-        <div className="space-y-3 pt-3 border-t border-white/10">
+        {/* 4. Controls & Driving Tweaks */}
+        <div className="space-y-3 pt-2 border-t border-white/10">
           <span className="text-xs font-race uppercase text-zinc-400 flex items-center gap-1.5">
-            <Monitor className="w-4 h-4 text-cyan-400" /> GRAPHICS FIDELITY
-          </span>
-          <div className="grid grid-cols-4 gap-2">
-            {(['low', 'medium', 'high', 'ultra'] as const).map((q) => (
-              <button
-                key={q}
-                onClick={() => {
-                  soundEngine.playUIClick();
-                  handleChange('graphicsQuality', q);
-                }}
-                className={`py-2 rounded-xl text-xs font-mono font-bold uppercase transition-all cursor-pointer ${
-                  settings.graphicsQuality === q
-                    ? 'bg-cyan-500 text-black shadow-md'
-                    : 'bg-zinc-800 text-zinc-400 border border-white/10 hover:text-white'
-                }`}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Driving Dynamics & Toggles */}
-        <div className="space-y-3 pt-3 border-t border-white/10">
-          <span className="text-xs font-race uppercase text-zinc-400 flex items-center gap-1.5">
-            <Zap className="w-4 h-4 text-amber-400" /> GAMEPLAY & CAMERA
+            <Gauge className="w-4 h-4 text-amber-400" /> DRIVING DYNAMICS
           </span>
 
           <div className="grid grid-cols-2 gap-3 text-xs font-mono">
@@ -169,8 +319,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     key={u}
                     onClick={() => handleChange('speedUnit', u)}
-                    className={`px-2 py-1 rounded text-[10px] font-bold uppercase cursor-pointer ${
-                      settings.speedUnit === u ? 'bg-orange-500 text-white' : 'text-zinc-500'
+                    className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase cursor-pointer ${
+                      settings.speedUnit === u ? 'bg-orange-500 text-white' : 'text-zinc-500 bg-white/5'
                     }`}
                   >
                     {u}
@@ -179,41 +329,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            {/* Motion Blur */}
-            <div className="bg-black/40 p-3 rounded-xl border border-white/5 flex items-center justify-between">
-              <span className="text-zinc-300">High-Speed FX</span>
-              <button
-                onClick={() => handleChange('motionBlur', !settings.motionBlur)}
-                className={`px-2 py-1 rounded text-[10px] font-bold uppercase cursor-pointer ${
-                  settings.motionBlur ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-500'
-                }`}
-              >
-                {settings.motionBlur ? 'ON' : 'OFF'}
-              </button>
-            </div>
-
-            {/* Camera Shake */}
-            <div className="bg-black/40 p-3 rounded-xl border border-white/5 flex items-center justify-between">
-              <span className="text-zinc-300">Camera Vibration</span>
-              <button
-                onClick={() => handleChange('cameraShake', !settings.cameraShake)}
-                className={`px-2 py-1 rounded text-[10px] font-bold uppercase cursor-pointer ${
-                  settings.cameraShake ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-500'
-                }`}
-              >
-                {settings.cameraShake ? 'ON' : 'OFF'}
-              </button>
-            </div>
-
-            {/* Auto Transmission */}
+            {/* Transmission */}
             <div className="bg-black/40 p-3 rounded-xl border border-white/5 flex items-center justify-between">
               <span className="text-zinc-300">Transmission</span>
-              <button
-                onClick={() => handleChange('autoGear', !settings.autoGear)}
-                className="px-2 py-1 rounded text-[10px] font-bold uppercase bg-orange-500 text-white"
-              >
-                AUTO (6-SPD)
-              </button>
+              <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                AUTO D1-D6 / R
+              </span>
             </div>
           </div>
         </div>
@@ -224,9 +345,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             soundEngine.playUIClick();
             onClose();
           }}
-          className="w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-race font-bold text-sm tracking-wider shadow-lg active:scale-95 transition-all cursor-pointer"
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-slate-950 font-race font-bold text-sm tracking-wider shadow-lg active:scale-98 transition-all cursor-pointer mt-1"
         >
-          SAVE & CLOSE
+          SAVE & CONTINUE PLAYING
         </button>
       </div>
     </div>

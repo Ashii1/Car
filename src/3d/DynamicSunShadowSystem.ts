@@ -159,10 +159,10 @@ export class DynamicSunShadowSystem {
     this.hemiLight = hemiLight;
     this.sceneFog = sceneFog;
 
-    // Apply high-fidelity shadow settings to sun directional light
+    // Apply high-performance shadow settings to sun directional light
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 2048;
-    this.sunLight.shadow.mapSize.height = 2048;
+    this.sunLight.shadow.mapSize.width = 1024;
+    this.sunLight.shadow.mapSize.height = 1024;
   }
 
   /**

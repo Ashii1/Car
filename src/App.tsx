@@ -43,7 +43,13 @@ export default function App() {
   const [profile, setProfile] = useState<PlayerOpenCityProfile>(() => {
     try {
       const saved = localStorage.getItem('street_riders_profile');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.ownedBikeIds?.includes('bmw_m8_comp')) {
+          parsed.ownedBikeIds = ['bmw_m8_comp', ...(parsed.ownedBikeIds || [])];
+        }
+        return parsed;
+      }
     } catch {}
     return INITIAL_PLAYER_PROFILE;
   });
@@ -51,9 +57,22 @@ export default function App() {
   const [bikes, setBikes] = useState<OpenCityBike[]>(() => {
     try {
       const saved = localStorage.getItem('street_riders_bikes');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed: OpenCityBike[] = JSON.parse(saved);
+        const hasCar = parsed.some((b) => b.category === 'German Supercar');
+        const list = hasCar
+          ? parsed
+          : [...INITIAL_OPEN_CITY_BIKES.filter((b) => b.category === 'German Supercar'), ...parsed];
+        return list.map((b) => ({
+          ...b,
+          damage: { ...DEFAULT_BIKE_DAMAGE, overallDamage: 0 },
+        }));
+      }
     } catch {}
-    return INITIAL_OPEN_CITY_BIKES;
+    return INITIAL_OPEN_CITY_BIKES.map((b) => ({
+      ...b,
+      damage: { ...DEFAULT_BIKE_DAMAGE, overallDamage: 0 },
+    }));
   });
 
   const [missions, setMissions] = useState<CityMission[]>(INITIAL_CITY_MISSIONS);
@@ -143,6 +162,36 @@ export default function App() {
         ? '603 HP Biturbo V8 Luxury SUV • Panamericana Waterfall Grille & Running Boards Active'
         : '617 HP Twin-Turbo M-Power SUV • Twin Kidney Grille with M-Colors & Panoramic Roof Active'
     );
+  };
+
+  const handleSelectVehicle = (vehicleId: string) => {
+    const target = bikes.find((b) => b.id === vehicleId);
+    if (!target) return;
+    setProfile((prev) => {
+      const next = { ...prev, currentBikeId: vehicleId };
+      try {
+        localStorage.setItem('street_riders_profile', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    gameSceneRef.current?.setBike(target);
+    cityAudio.ensureContext();
+    cityAudio.playGearShiftClick(false);
+    showToast(
+      `VEHICLE ACTIVATED: ${target.name.toUpperCase()}`,
+      `${target.category} • Instant Performance Ready`
+    );
+  };
+
+  const handleToggleVehicleType = () => {
+    const isCurrentlyCar = currentBike.category === 'German Supercar';
+    if (isCurrentlyCar) {
+      const target = bikes.find((b) => b.id === 'echo_300') || bikes.find((b) => b.id === 'kid_cyber_glider') || bikes[0];
+      handleSelectVehicle(target.id);
+    } else {
+      const target = bikes.find((b) => b.id === 'bmw_m8_comp') || bikes.find((b) => b.category === 'German Supercar') || bikes[0];
+      handleSelectVehicle(target.id);
+    }
   };
 
   const [driveMode, setDriveMode] = useState<AutomotiveDriveMode>('SPORT+');
@@ -257,23 +306,8 @@ export default function App() {
             `Speed reduced by ${Math.round(speedLoss)} km/h • Watch road surface`
           );
         },
-        onBikeDamage: (damage) => {
-          setBikes((prev) => {
-            const current = prev.find((b) => b.id === currentBike.id);
-            if (
-              current?.damage &&
-              current.damage.overallDamage === damage.overallDamage &&
-              current.damage.fairingScratches === damage.fairingScratches &&
-              current.damage.fairingCracks === damage.fairingCracks
-            ) {
-              return prev;
-            }
-            return prev.map((b) =>
-              b.id === currentBike.id
-                ? { ...b, damage: { ...damage } }
-                : b
-            );
-          });
+        onBikeDamage: () => {
+          // Keep all vehicles at pristine 0% damage - remove red screen/critical damage
         },
         onMountTransition: (state, progress) => {
           setMountTransition((prev) => {
@@ -311,6 +345,7 @@ export default function App() {
       });
 
       gameSceneRef.current = gameScene;
+      gameScene.setGraphicsQuality(settings.graphicsQuality);
       gameScene.start();
 
       return () => {
@@ -387,6 +422,11 @@ export default function App() {
         const next = views[(views.indexOf(cameraView) + 1) % views.length];
         setCameraView(next);
         gameSceneRef.current?.setCameraView(next);
+      }
+
+      // Quick Vehicle Switch (Car ⇄ Motorcycle / Glider)
+      if (e.code === 'KeyV') {
+        handleToggleVehicleType();
       }
 
       // Manual Gear Shifting (Paddle / Shifter Stick input)
@@ -708,67 +748,101 @@ export default function App() {
 
           {/* Center Play Button & Options Drawer (Phase 2 Professional Main Menu) */}
           <div className="max-w-md w-full my-auto space-y-2.5">
-            {/* 1. CONTINUE / RESUME */}
+            {/* Quick Vehicle Launcher (Car vs Motorcycle side-by-side choice) */}
+            <div className="grid grid-cols-2 gap-2">
+              {/* Option A: Drive Sports Car */}
+              <button
+                onClick={() => {
+                  cityAudio.ensureContext();
+                  handleSelectVehicle('bmw_m8_comp');
+                  setInGame(true);
+                }}
+                className={`p-3.5 rounded-2xl border text-left transition-all active:scale-95 cursor-pointer shadow-xl group ${
+                  currentBike.category === 'German Supercar'
+                    ? 'bg-gradient-to-br from-cyan-950/80 to-blue-900/60 border-cyan-400 ring-1 ring-cyan-400 shadow-cyan-500/20'
+                    : 'bg-black/60 border-white/15 hover:border-cyan-400/80 hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="w-9 h-9 rounded-xl bg-cyan-400 text-black flex items-center justify-center font-bold shadow-md group-hover:scale-105 transition-transform">
+                    <Car className="w-5 h-5 fill-black" />
+                  </div>
+                  <span className="font-race text-cyan-400 font-bold text-xs">PLAY ▶</span>
+                </div>
+                <div className="font-race font-black text-sm text-white">DRIVE CAR</div>
+                <div className="text-[10px] font-mono text-cyan-200">Apex M8 / AMG Biturbo</div>
+              </button>
+
+              {/* Option B: Ride Motorcycle */}
+              <button
+                onClick={() => {
+                  cityAudio.ensureContext();
+                  handleSelectVehicle('echo_300');
+                  setInGame(true);
+                }}
+                className={`p-3.5 rounded-2xl border text-left transition-all active:scale-95 cursor-pointer shadow-xl group ${
+                  currentBike.category !== 'German Supercar' && currentBike.id !== 'kid_cyber_glider'
+                    ? 'bg-gradient-to-br from-orange-950/80 to-amber-900/60 border-orange-400 ring-1 ring-orange-400 shadow-orange-500/20'
+                    : 'bg-black/60 border-white/15 hover:border-orange-400/80 hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="w-9 h-9 rounded-xl bg-orange-500 text-black flex items-center justify-center font-bold shadow-md group-hover:scale-105 transition-transform">
+                    <Bike className="w-5 h-5 fill-black" />
+                  </div>
+                  <span className="font-race text-orange-400 font-bold text-xs">PLAY ▶</span>
+                </div>
+                <div className="font-race font-black text-sm text-white">RIDE BIKE</div>
+                <div className="text-[10px] font-mono text-orange-200">Echo 300 / Superbike</div>
+              </button>
+            </div>
+
+            {/* Resume Current Active Machine */}
             <button
               onClick={() => {
                 cityAudio.ensureContext();
                 setInGame(true);
               }}
-              className="w-full glass-panel-accent p-4 rounded-2xl border border-cyan-400 hover:border-cyan-300 text-left transition-all active:scale-98 shadow-[0_0_30px_rgba(6,182,212,0.35)] flex items-center justify-between cursor-pointer group"
+              className="w-full glass-panel-accent p-3.5 rounded-2xl border border-white/20 hover:border-cyan-300 text-left transition-all active:scale-98 shadow-lg flex items-center justify-between cursor-pointer group"
             >
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-cyan-400 text-black flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
-                  <Play className="w-5 h-5 fill-black ml-0.5" />
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center">
+                  <Play className="w-4 h-4 fill-white ml-0.5" />
                 </div>
                 <div>
-                  <div className="font-race font-black text-xl text-white">
-                    {currentBike.id === 'kid_cyber_glider' ? 'RIDE CYBER-GLIDER' : 'DRIVE & RIDE'}
+                  <div className="font-race font-bold text-sm text-white">
+                    CONTINUE WITH {currentBike.name.toUpperCase()}
                   </div>
-                  <div className="text-[11px] font-mono text-cyan-200">
-                    {currentBike.name} • {currentBike.category}
+                  <div className="text-[10px] font-mono text-cyan-200">
+                    Category: {currentBike.category} • Top Speed: {currentBike.baseStats.topSpeed} KM/H
                   </div>
                 </div>
               </div>
-              <span className="font-race text-xl text-cyan-400 font-bold">▶</span>
+              <span className="font-race text-sm text-cyan-400 font-bold">START ▶</span>
             </button>
 
-            {/* 2. MODERN KIDS TECH GEAR & COMPANION DRONE */}
+            {/* MODERN KIDS TECH GEAR & COMPANION DRONE */}
             <button
               onClick={() => setShowKidGear(true)}
-              className="w-full glass-panel-accent p-3.5 rounded-xl border border-pink-500/60 hover:border-pink-400 bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-pink-950/40 text-left flex items-center justify-between text-white font-race font-bold cursor-pointer transition-all active:scale-98 shadow-[0_0_25px_rgba(236,72,153,0.25)] group"
+              className="w-full glass-panel-accent p-3 rounded-xl border border-pink-500/60 hover:border-pink-400 bg-gradient-to-r from-cyan-950/40 via-purple-950/30 to-pink-950/40 text-left flex items-center justify-between text-white font-race font-bold cursor-pointer transition-all active:scale-98 shadow-[0_0_20px_rgba(236,72,153,0.2)] group"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold shadow-md group-hover:scale-105 transition-transform">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-cyan-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold shadow-md group-hover:scale-105 transition-transform">
                   ⚡
                 </div>
                 <div>
-                  <div className="text-sm font-race text-white flex items-center gap-2">
+                  <div className="text-xs font-race text-white flex items-center gap-1.5">
                     MODERN KIDS TECH GEAR & DRONE
-                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-pink-500/20 text-pink-300 border border-pink-500/40 uppercase">
+                    <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-pink-500/20 text-pink-300 border border-pink-500/40 uppercase">
                       NEW
                     </span>
                   </div>
-                  <div className="text-[10px] font-mono text-cyan-200">
-                    AeroBot Companion • Livestream Mode • {profile.kidCollectiblesCount || 0} Collectibles Found
+                  <div className="text-[9px] font-mono text-cyan-200">
+                    AeroBot Companion • Livestream Mode • {profile.kidCollectiblesCount || 0} Found
                   </div>
                 </div>
               </div>
-              <span className="text-xs font-race text-pink-400 group-hover:translate-x-0.5 transition-transform">⚙</span>
-            </button>
-
-            {/* 3. RIDE (Free Roam) */}
-            <button
-              onClick={() => {
-                cityAudio.ensureContext();
-                setInGame(true);
-              }}
-              className="w-full glass-panel p-3.5 rounded-xl border border-white/10 hover:border-cyan-400 text-left flex items-center justify-between text-white font-race font-bold cursor-pointer transition-all active:scale-98"
-            >
-              <div className="flex items-center gap-3">
-                <Car className="w-5 h-5 text-cyan-400" />
-                <span>FREE DRIVE (OPEN CITY)</span>
-              </div>
-              <span className="text-xs font-mono text-zinc-400">Highways, Downtown & Tunnels</span>
+              <span className="text-xs font-race text-pink-400">⚙</span>
             </button>
 
             {/* 3. GARAGE */}
@@ -847,7 +921,7 @@ export default function App() {
           {/* Footer Controls Guide */}
           <div className="flex flex-col md:flex-row items-center justify-between text-xs font-mono text-zinc-500 gap-2">
             <div>
-              Desktop: <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">W/A/S/D</kbd> Drive • <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Shift</kbd> Nitro • <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Space+W</kbd> Wheelie • <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Q</kbd> Mount/Foot • <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">M</kbd> Map
+              Desktop: <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">W/A/S/D</kbd> Drive • <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Shift</kbd> Nitro • <kbd className="px-1.5 py-0.5 bg-cyan-950 border border-cyan-400/50 rounded text-cyan-300 font-bold">V</kbd> Switch Car/Bike • <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Space</kbd> Handbrake • <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Q</kbd> Mount/Foot • <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">M</kbd> Map
             </div>
             <div>Full Touch Controls for Smartphones & Tablets</div>
           </div>
@@ -943,6 +1017,9 @@ export default function App() {
           currentGear={currentGear}
           onOpenKidGearModal={() => setShowKidGear(true)}
           isStreamerMode={isStreamerMode}
+          onToggleVehicleType={handleToggleVehicleType}
+          isCarActive={currentBike.category === 'German Supercar'}
+          onOpenSettings={() => setShowSettings(true)}
         />
       )}
 
@@ -1149,6 +1226,22 @@ export default function App() {
             });
             showToast('⚡ PRIME NITRO OVERDRIVE ACTIVE!', '100% Nitro Refilled • Rainbow Hyperspeed Ready');
           }}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsModal
+          settings={settings}
+          onUpdateSettings={(newSettings) => {
+            setSettings(newSettings);
+            gameSceneRef.current?.setGraphicsQuality(newSettings.graphicsQuality);
+            try {
+              localStorage.setItem('street_riders_settings', JSON.stringify(newSettings));
+            } catch {}
+          }}
+          currentVehicleId={currentBike.id}
+          onSelectVehicle={handleSelectVehicle}
+          onClose={() => setShowSettings(false)}
         />
       )}
     </div>

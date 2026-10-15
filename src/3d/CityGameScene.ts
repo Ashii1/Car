@@ -122,6 +122,7 @@ export interface CityGameSceneInstance {
     carStyle: CarDesignStyle;
     driveMode: AutomotiveDriveMode;
   } | null;
+  setGraphicsQuality: (quality: 'low' | 'medium' | 'high' | 'ultra') => void;
   dispose: () => void;
 }
 
@@ -129,53 +130,41 @@ export function createSafeWebGLRenderer(
   canvas: HTMLCanvasElement,
   onStatus?: (supported: boolean) => void
 ): THREE.WebGLRenderer {
-  // 1. Primary standard WebGLRenderer
+  const contextAttrs: WebGLContextAttributes = {
+    powerPreference: 'high-performance',
+    failIfMajorPerformanceCaveat: false,
+    antialias: false,
+    alpha: false,
+    depth: true,
+  };
+
+  let gl: RenderingContext | null = null;
   try {
-    const r = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      powerPreference: 'default',
-      failIfMajorPerformanceCaveat: false,
-    });
-    r.debug.checkShaderErrors = false;
-    onStatus?.(true);
-    return r;
+    gl = canvas.getContext('webgl2', contextAttrs);
   } catch {}
 
-  // 2. Fallback WebGLRenderer with low-power profile
-  try {
-    const r = new THREE.WebGLRenderer({
-      canvas,
-      antialias: false,
-      powerPreference: 'low-power',
-      failIfMajorPerformanceCaveat: false,
-    });
-    r.debug.checkShaderErrors = false;
-    onStatus?.(true);
-    return r;
-  } catch {}
+  if (!gl) {
+    try {
+      gl = canvas.getContext('webgl', contextAttrs) || canvas.getContext('experimental-webgl', contextAttrs);
+    } catch {}
+  }
 
-  // 3. Fallback to manual context request
-  try {
-    const gl =
-      canvas.getContext('webgl2', { failIfMajorPerformanceCaveat: false }) ||
-      canvas.getContext('webgl', { failIfMajorPerformanceCaveat: false }) ||
-      canvas.getContext('experimental-webgl');
-    if (gl) {
+  if (gl) {
+    try {
       const r = new THREE.WebGLRenderer({
         canvas,
         context: gl as any,
         antialias: false,
+        powerPreference: 'high-performance',
       });
       r.debug.checkShaderErrors = false;
       onStatus?.(true);
       return r;
-    }
-  } catch {}
+    } catch {}
+  }
 
-  // 4. Safe fallback mock renderer if the browser has temporarily blocked WebGL
+  // Safe fallback mock renderer if the browser has temporarily blocked WebGL
   onStatus?.(false);
-  const ctx2d = canvas.getContext('2d');
   return {
     domElement: canvas,
     debug: { checkShaderErrors: false },
@@ -187,12 +176,7 @@ export function createSafeWebGLRenderer(
       canvas.height = h;
     },
     setPixelRatio: () => {},
-    render: () => {
-      if (ctx2d) {
-        ctx2d.fillStyle = '#06080c';
-        ctx2d.fillRect(0, 0, canvas.width, canvas.height);
-      }
-    },
+    render: () => {},
     dispose: () => {},
     getContext: () => null,
   } as unknown as THREE.WebGLRenderer;
@@ -239,11 +223,11 @@ export function createCityGameScene(
   canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
 
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.setPixelRatio(1.0); // Maintain locked 1.0 pixel ratio for maximum framerate and zero lag
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.BasicShadowMap; // BasicShadowMap is significantly faster
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.35;
+  renderer.toneMappingExposure = 1.30;
 
   // 1. Build City Open World
   const world = buildCityWorld(scene);
@@ -320,56 +304,23 @@ export function createCityGameScene(
   // Horn alert timer for pedestrian reactions
   let hornTimer = 0;
 
-  // Collision Damage System Handler
+  // Collision Impact Handler (arcade bumper physics - no critical damage or dismounting)
   let lastCrashTime = 0;
   const applyCollisionImpact = (speed: number) => {
     const now = performance.now();
-    if (speed < 15 || now - lastCrashTime < 500) return;
+    if (speed < 18 || now - lastCrashTime < 600) return;
     lastCrashTime = now;
 
     cityAudio.playCrash(speed > 60 ? 'heavy' : 'light');
 
-    // Scratches
-    if (speed >= 18) {
-      currentDamage.fairingScratches = Math.min(1.0, currentDamage.fairingScratches + 0.28 + (speed / 140) * 0.4);
-    }
+    // Keep vehicle at pristine 0% damage - no red screen or critical damage warnings
+    currentDamage.overallDamage = 0;
+    currentDamage.fairingScratches = 0;
+    currentDamage.fairingCracks = 0;
+    currentDamage.leftMirrorMissing = false;
+    currentDamage.rightMirrorMissing = false;
+    currentDamage.headlightCracked = false;
 
-    // Fairing Cracks & Knock off Mirrors
-    if (speed >= 38) {
-      currentDamage.fairingCracks = Math.min(1.0, currentDamage.fairingCracks + 0.35 + (speed / 110) * 0.45);
-
-      if (!currentDamage.leftMirrorMissing && (Math.random() < 0.5 || currentDamage.rightMirrorMissing)) {
-        currentDamage.leftMirrorMissing = true;
-      } else if (!currentDamage.rightMirrorMissing) {
-        currentDamage.rightMirrorMissing = true;
-      }
-    }
-
-    // High speed severe impact: break both mirrors & crack headlight
-    if (speed >= 75) {
-      currentDamage.leftMirrorMissing = true;
-      currentDamage.rightMirrorMissing = true;
-      currentDamage.headlightCracked = true;
-      currentDamage.fairingCracks = Math.min(1.0, currentDamage.fairingCracks + 0.45);
-    }
-
-    // Trigger authentic crash ragdoll physics if impact is severe (speed >= 35 km/h)
-    if (speed >= 35) {
-      const s = physics.state;
-      bikeModel.triggerCrash(speed, new THREE.Vector3(s.x, s.y, s.z), s.heading);
-    }
-
-    // Compute overall damage percentage
-    let score = 0;
-    score += currentDamage.fairingScratches * 30;
-    score += currentDamage.fairingCracks * 40;
-    if (currentDamage.leftMirrorMissing) score += 12;
-    if (currentDamage.rightMirrorMissing) score += 12;
-    if (currentDamage.headlightCracked) score += 6;
-    currentDamage.overallDamage = Math.min(100, Math.round(score));
-
-    // Update 3D bike visuals
-    bikeModel.applyDamage(currentDamage);
     callbacks.onBikeDamage?.(currentDamage);
   };
 
@@ -1377,6 +1328,26 @@ export function createCityGameScene(
       kidDrone.setSkin(skin);
     },
     getCollectiblesStatus: () => kidCollectibles.getItemsStatus(),
+    setGraphicsQuality: (quality: 'low' | 'medium' | 'high' | 'ultra') => {
+      try {
+        if (quality === 'low') {
+          renderer.shadowMap.enabled = false;
+          renderer.setPixelRatio(1.0);
+        } else if (quality === 'medium') {
+          renderer.shadowMap.enabled = true;
+          renderer.shadowMap.type = THREE.BasicShadowMap;
+          renderer.setPixelRatio(1.0);
+        } else if (quality === 'high') {
+          renderer.shadowMap.enabled = true;
+          renderer.shadowMap.type = THREE.PCFShadowMap;
+          renderer.setPixelRatio(1.0);
+        } else {
+          renderer.shadowMap.enabled = true;
+          renderer.shadowMap.type = THREE.PCFShadowMap;
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+        }
+      } catch {}
+    },
     dispose,
   };
 }

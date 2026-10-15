@@ -431,13 +431,7 @@ export function createRaceScene(
     sparkGeo.dispose();
     sparkMat.dispose();
 
-    try {
-      const gl = renderer.getContext();
-      const loseContextExt = gl?.getExtension('WEBGL_lose_context');
-      if (loseContextExt) {
-        loseContextExt.loseContext();
-      }
-    } catch {}
+    // Cleanly dispose renderer without artificially triggering context loss
     renderer.dispose();
     if (canvas.parentElement) {
       canvas.parentElement.removeChild(canvas);
