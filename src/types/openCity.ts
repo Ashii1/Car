@@ -243,8 +243,11 @@ export interface PedestrianNPC {
   pathId: string;
 }
 
+export type TrafficDensity = 'off' | 'low' | 'medium' | 'high';
+
 export interface GameSettings {
   graphicsQuality: 'low' | 'medium' | 'high' | 'ultra';
+  trafficDensity?: TrafficDensity;
   fpsTarget: 30 | 60;
   steeringSensitivity: number;
   speedUnit: 'kmh' | 'mph';

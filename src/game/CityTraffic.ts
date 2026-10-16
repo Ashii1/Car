@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TrafficVehicle, WantedState, TimeOfDay, WeatherType, DriverPersonality, DriverAggroState } from '../types/openCity';
+import { TrafficVehicle, WantedState, TimeOfDay, WeatherType, DriverPersonality, DriverAggroState, TrafficDensity } from '../types/openCity';
 import { cityAudio } from '../audio/CityAudioEngine';
 import { buildRealisticVehicle, VehicleCategory, BuiltVehicleInstance } from '../3d/TrafficCarBuilder';
 
@@ -11,6 +11,7 @@ export interface TrafficCallbacks {
 
 export class CityTrafficManager {
   public vehicles: TrafficVehicle[] = [];
+  public currentDensity: TrafficDensity = 'medium';
   public wantedState: WantedState = {
     level: 0,
     isPursuitActive: false,
@@ -40,6 +41,18 @@ export class CityTrafficManager {
 
   public setCallbacks(callbacks: TrafficCallbacks) {
     this.callbacks = callbacks;
+  }
+
+  public setDensity(density: TrafficDensity) {
+    this.currentDensity = density;
+    const densityCounts: Record<TrafficDensity, number> = {
+      off: 0,
+      low: 10,
+      medium: 22,
+      high: 38,
+    };
+    const targetCount = densityCounts[density] ?? 22;
+    this.initTraffic(targetCount);
   }
 
   public setWeather(weather: WeatherType) {
@@ -340,6 +353,28 @@ export class CityTrafficManager {
     this.vehicles.forEach((v) => {
       // Inactive sheltered vehicles do not participate in traffic flow
       if (v.isActive === false) return;
+
+      const distToPlayer = Math.hypot(playerX - v.x, playerZ - v.z);
+      const isVisibleRange = distToPlayer < 120;
+      if (v.meshGroup.visible !== isVisibleRange) {
+        v.meshGroup.visible = isVisibleRange;
+      }
+
+      // High-performance CPU optimization: vehicles beyond 120m step forward with simple linear movement
+      if (!isVisibleRange && !v.isPolice) {
+        const advance = (v.speed / 3.6) * delta * v.direction;
+        if (v.roadAxis === 'z') {
+          v.z += advance;
+          if (v.z > 2400) v.z = -750;
+          else if (v.z < -750) v.z = 2400;
+        } else {
+          v.x += advance;
+          if (v.x > 450) v.x = -450;
+          else if (v.x < -450) v.x = 450;
+        }
+        v.meshGroup.position.set(v.x, v.y, v.z);
+        return;
+      }
 
       // Decrement AI reaction & near-miss cooldown timers
       if (v.aggroTimer && v.aggroTimer > 0) {

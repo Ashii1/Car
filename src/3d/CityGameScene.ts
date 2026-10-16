@@ -9,6 +9,7 @@ import {
   WantedState,
   BikeDamageState,
   DEFAULT_BIKE_DAMAGE,
+  TrafficDensity,
 } from '../types/openCity';
 import { BikeModelInstance, createBikeModel } from './BikeModelBuilder';
 import { ModernCarInstance, createModernCarModel, CarDesignStyle, AutomotiveDriveMode } from './ModernCarBuilder';
@@ -29,6 +30,7 @@ import { PropCarManager } from './PropCarManager';
 import { DynamicSunShadowSystem } from './DynamicSunShadowSystem';
 import { ModernKidCompanionDrone, DroneSkinId } from './ModernKidCompanionDrone';
 import { ModernKidCollectiblesSystem, CollectiblePickupResult } from './ModernKidCollectiblesSystem';
+import { telemetryTracker } from '../game/TelemetryTracker';
 
 export interface CityGameSceneCallbacks {
   onMissionComplete: (mission: CityMission, rewardCash: number, rewardXp: number) => void;
@@ -123,6 +125,7 @@ export interface CityGameSceneInstance {
     driveMode: AutomotiveDriveMode;
   } | null;
   setGraphicsQuality: (quality: 'low' | 'medium' | 'high' | 'ultra') => void;
+  setTrafficDensity: (density: TrafficDensity) => void;
   dispose: () => void;
 }
 
@@ -292,10 +295,10 @@ export function createCityGameScene(
     onEvadeSuccess: (reward) => callbacks.onEvadeSuccess?.(reward),
     onRadioChatter: (msg) => callbacks.onRadioChatter?.(msg),
   });
-  traffic.initTraffic(42);
+  traffic.initTraffic(22);
 
   const pedestrians = new PedestrianManager(scene);
-  pedestrians.initPedestrians(32);
+  pedestrians.initPedestrians(16);
 
   // 6. Parked Prop Cars Manager (Street & Parking Lot Prop Cars)
   const propCarManager = new PropCarManager(scene, world.obstacles);
@@ -755,6 +758,18 @@ export function createCityGameScene(
           world
         );
       }
+
+      // Stream live telemetry for 30-minute Recharts Performance Dashboard
+      telemetryTracker.recordFrame(
+        s.speed,
+        s.x,
+        s.z,
+        s.gearLabel || (playerCar.group.visible ? (playerCar.getCurrentGear?.() || 'D1') : `D${s.gear}`),
+        s.rpm,
+        currentInputs.throttle,
+        s.isNitroActive,
+        delta
+      );
     } else {
       // Autonomous On-Foot Human Mode:
       // A. Keep parked modern car stationary at its parked spot
@@ -1339,14 +1354,17 @@ export function createCityGameScene(
           renderer.setPixelRatio(1.0);
         } else if (quality === 'high') {
           renderer.shadowMap.enabled = true;
-          renderer.shadowMap.type = THREE.PCFShadowMap;
+          renderer.shadowMap.type = THREE.BasicShadowMap;
           renderer.setPixelRatio(1.0);
         } else {
           renderer.shadowMap.enabled = true;
-          renderer.shadowMap.type = THREE.PCFShadowMap;
-          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+          renderer.shadowMap.type = THREE.BasicShadowMap;
+          renderer.setPixelRatio(1.0);
         }
       } catch {}
+    },
+    setTrafficDensity: (density: TrafficDensity) => {
+      traffic.setDensity(density);
     },
     dispose,
   };

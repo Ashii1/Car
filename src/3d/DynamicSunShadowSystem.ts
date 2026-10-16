@@ -146,6 +146,7 @@ export class DynamicSunShadowSystem {
 
   // Smoothed player tracking anchor to prevent shadow jitter at high speeds
   private smoothedTargetAnchor = new THREE.Vector3();
+  private tempTargetAnchor = new THREE.Vector3();
   private isInitialized = false;
 
   constructor(
@@ -161,8 +162,8 @@ export class DynamicSunShadowSystem {
 
     // Apply high-performance shadow settings to sun directional light
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 1024;
-    this.sunLight.shadow.mapSize.height = 1024;
+    this.sunLight.shadow.mapSize.width = 512;
+    this.sunLight.shadow.mapSize.height = 512;
   }
 
   /**
@@ -245,10 +246,8 @@ export class DynamicSunShadowSystem {
       this.isInitialized = true;
     } else {
       const anchorFollowRate = Math.min(delta * 14.0, 1.0);
-      this.smoothedTargetAnchor.lerp(
-        new THREE.Vector3(playerX, playerY + 0.6, playerZ),
-        anchorFollowRate
-      );
+      this.tempTargetAnchor.set(playerX, playerY + 0.6, playerZ);
+      this.smoothedTargetAnchor.lerp(this.tempTargetAnchor, anchorFollowRate);
     }
 
     // Position sun light relative to smoothed player anchor

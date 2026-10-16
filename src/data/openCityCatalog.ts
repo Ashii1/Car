@@ -590,6 +590,7 @@ export const INITIAL_PLAYER_PROFILE: PlayerOpenCityProfile = {
 
 export const DEFAULT_OPEN_CITY_SETTINGS: GameSettings = {
   graphicsQuality: 'medium',
+  trafficDensity: 'medium',
   fpsTarget: 60,
   steeringSensitivity: 1.0,
   speedUnit: 'kmh',

@@ -26,6 +26,7 @@ import {
   Wind,
   Film,
   Bot,
+  Gauge,
 } from 'lucide-react';
 import { OpenCityPlayerState } from '../game/OpenWorldPhysics';
 import { AutomotiveDriveMode, DRIVE_MODE_AMBIENT_COLORS } from '../3d/ModernCarBuilder';
@@ -95,9 +96,10 @@ export interface CityHUDProps {
   onToggleVehicleType?: () => void;
   isCarActive?: boolean;
   onOpenSettings?: () => void;
+  onOpenPerformance?: () => void;
 }
 
-export const CityHUD: React.FC<CityHUDProps> = ({
+export const CityHUD = React.memo<CityHUDProps>(({
   playerState,
   wantedState,
   radioChatter,
@@ -111,6 +113,7 @@ export const CityHUD: React.FC<CityHUDProps> = ({
   onSelectCameraView,
   onOpenPhotoMode,
   onOpenReplay,
+  onOpenPerformance,
   onOpenDailyChallenges,
   onOpenKidGearModal,
   isStreamerMode,
@@ -296,80 +299,145 @@ export const CityHUD: React.FC<CityHUDProps> = ({
             )}
           </div>
 
-          {/* Modern Sports Car AutomotiveHUD (Shows when in car) */}
+          {/* Redesigned Clean Motorsport Instrument Binnacle */}
           {playerState.isOnBike ? (
-            cockpitDock === 'top' ? (
-              <AutomotiveHUD
-                vehicleState={playerState}
-                speedUnit={speedUnit}
-                dockPosition="top"
-                onToggleDock={() => setCockpitDock('bottom')}
-                carStyle={carStyle}
-                onToggleCarStyle={() => onSwitchCarStyle?.(carStyle === 'bmw_m' ? 'benz_amg' : 'bmw_m')}
-                driveMode={driveMode}
-                onDriveModeChange={onDriveModeChange}
-                ambientColor={ambientColor}
-                onAmbientColorChange={onAmbientColorChange}
-                className="animate-in fade-in slide-in-from-top duration-150"
-              />
-            ) : (
-              <div className="bg-black/90 p-2 sm:p-2.5 rounded-2xl border border-cyan-500/30 backdrop-blur-xl shadow-xl flex items-center justify-between gap-3 min-w-[170px]">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    <GearIndicator
-                      gear={gear}
-                      isNeutral={gear === 'N'}
-                      isReverse={gear === 'R'}
-                      isPark={gear === 'P'}
-                      currentRpm={playerState.rpm}
-                      size="sm"
-                    />
-                    {onManualShift && (
-                      <div className="flex flex-col gap-0.5 pointer-events-auto">
-                        <button
-                          onClick={() => {
-                            soundEngine.playUIClick();
-                            onManualShift('UP');
-                          }}
-                          className="px-1.5 py-0.5 rounded bg-zinc-800/90 hover:bg-zinc-700 text-cyan-300 hover:text-white text-[8px] font-mono font-black border border-white/10 active:scale-95 transition-all cursor-pointer"
-                          title="Manual Upshift Paddle (Key X) - Watch 3D Driver Shift Gears"
-                        >
-                          +
-                        </button>
-                        <button
-                          onClick={() => {
-                            soundEngine.playUIClick();
-                            onManualShift('DOWN');
-                          }}
-                          className="px-1.5 py-0.5 rounded bg-zinc-800/90 hover:bg-zinc-700 text-amber-300 hover:text-white text-[8px] font-mono font-black border border-white/10 active:scale-95 transition-all cursor-pointer"
-                          title="Manual Downshift Paddle (Key Z) - Watch 3D Driver Shift Gears"
-                        >
-                          -
-                        </button>
-                      </div>
-                    )}
-                  </div>
+            <div className="bg-[#080d18]/95 border border-cyan-500/40 p-2.5 sm:p-3 rounded-2xl backdrop-blur-xl shadow-2xl flex flex-col gap-2 min-w-[210px] sm:min-w-[260px] animate-in fade-in duration-150">
+              {/* Row 1: Vehicle Brand Badge + Drive Mode + Telemetry Shortcut */}
+              <div className="flex items-center justify-between gap-1.5 pb-1 border-b border-white/10">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs">{isCarActive ? '🏎️' : '🏍️'}</span>
+                  <span className="text-[10px] font-race font-bold text-white tracking-wider truncate max-w-[110px] sm:max-w-[140px]">
+                    {isCarActive ? (carStyle === 'bmw_m' ? 'BMW i5 M60' : 'AMG GT') : 'SUPERBIKE'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {onDriveModeChange && (
+                    <button
+                      onClick={() => {
+                        soundEngine.playUIClick();
+                        const modes: AutomotiveDriveMode[] = ['SPORT+', 'CORSA', 'COMFORT', 'ECO'];
+                        const next = modes[(modes.indexOf(driveMode || 'SPORT+') + 1) % modes.length];
+                        onDriveModeChange(next);
+                      }}
+                      className="px-1.5 py-0.5 rounded text-[8px] font-race font-black uppercase tracking-wider bg-red-950/80 border border-red-500/80 text-red-200 hover:border-red-400 active:scale-95 transition-all cursor-pointer"
+                      title="Switch Drive Mode"
+                    >
+                      {driveMode || 'SPORT+'}
+                    </button>
+                  )}
+                  {onOpenPerformance && (
+                    <button
+                      onClick={() => {
+                        soundEngine.playUIClick();
+                        onOpenPerformance();
+                      }}
+                      className="p-1 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 hover:text-white transition-all cursor-pointer"
+                      title="Open 30M Telemetry Dashboard [T]"
+                    >
+                      <Gauge className="w-3 h-3 text-cyan-400" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Row 2: Digital Speedometer + Large Tactical Gear Badge */}
+              <div className="flex items-center justify-between gap-3">
+                {/* Speedometer */}
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-3xl sm:text-4xl font-race font-black text-white italic tracking-tighter drop-shadow-[0_0_12px_rgba(6,182,212,0.6)]">
+                    {speed}
+                  </span>
                   <div className="flex flex-col">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xl font-race font-black text-white italic tracking-tighter">
-                        {speed}
-                      </span>
-                      <span className="text-[9px] font-race font-bold text-cyan-400 uppercase">
-                        {speedUnit.toUpperCase()}
-                      </span>
-                    </div>
-                    <span className="text-[7.5px] font-mono text-zinc-400">VIRTUAL DASH AT BTM</span>
+                    <span className="text-[10px] font-race font-bold text-cyan-400 uppercase">
+                      {speedUnit.toUpperCase()}
+                    </span>
+                    <span className="text-[8px] font-mono text-zinc-400 font-bold">
+                      {rawSpeedKmh > 1 ? `${Math.round(rawSpeedKmh)} RAW` : 'IDLE'}
+                    </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => setCockpitDock('top')}
-                  className="text-[8px] font-mono font-bold text-cyan-300 hover:text-white bg-cyan-950/80 hover:bg-cyan-900 px-2 py-1 rounded-lg border border-cyan-500/40 cursor-pointer active:scale-95 transition-all"
-                  title="Dock full digital cockpit instrument cluster at the top"
-                >
-                  DOCK TOP ▲
-                </button>
+
+                {/* Tactical Gear Badge */}
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center font-race font-black text-lg border-2 shadow-lg ${
+                      effectiveGear === 'R'
+                        ? 'bg-amber-950/90 border-amber-400 text-amber-200 animate-pulse shadow-[0_0_12px_rgba(245,158,11,0.6)]'
+                        : effectiveGear === 'P'
+                        ? 'bg-red-950/90 border-red-500 text-red-200'
+                        : effectiveGear === 'N'
+                        ? 'bg-zinc-900 border-zinc-500 text-zinc-300'
+                        : 'bg-gradient-to-br from-cyan-950/90 to-blue-950/90 border-cyan-400 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.5)]'
+                    }`}
+                  >
+                    {gear}
+                  </div>
+                  {onManualShift && (
+                    <div className="flex flex-col gap-0.5 pointer-events-auto">
+                      <button
+                        onClick={() => {
+                          soundEngine.playUIClick();
+                          onManualShift('UP');
+                        }}
+                        className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-cyan-300 text-[8px] font-mono font-black border border-white/10 active:scale-95 transition-all cursor-pointer"
+                        title="Paddle Upshift [X]"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => {
+                          soundEngine.playUIClick();
+                          onManualShift('DOWN');
+                        }}
+                        className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-amber-300 text-[8px] font-mono font-black border border-white/10 active:scale-95 transition-all cursor-pointer"
+                        title="Paddle Downshift [Z]"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            )
+
+              {/* Row 3: Formula 1 LED Shift Lights Strip + NOS Gauge */}
+              <div className="flex flex-col gap-1 pt-0.5">
+                {/* 10-LED Shift Light Bar */}
+                <div className="flex items-center gap-1 w-full bg-black/60 p-1 rounded-lg border border-white/10">
+                  {Array.from({ length: 10 }).map((_, idx) => {
+                    const ratio = playerState.rpmRatio ?? rawSpeedKmh / 280;
+                    const threshold = 0.2 + (idx / 10) * 0.75;
+                    const active = ratio >= threshold;
+                    let color = 'bg-emerald-400 shadow-[0_0_6px_#34d399]';
+                    if (idx >= 4 && idx < 7) color = 'bg-amber-400 shadow-[0_0_6px_#f59e0b]';
+                    else if (idx >= 7) color = 'bg-red-500 shadow-[0_0_8px_#ef4444]';
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex-1 h-1.5 rounded-xs transition-all duration-75 ${
+                          active ? color : 'bg-zinc-800/80'
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* Nitrous Oxide Bar */}
+                <div className="flex items-center justify-between text-[8px] font-mono font-bold text-zinc-400">
+                  <span className="flex items-center gap-1 text-cyan-300">
+                    <Zap className="w-2.5 h-2.5 fill-cyan-400 text-cyan-400" />
+                    NOS NITRO
+                  </span>
+                  <span className="text-cyan-200">{nitro}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden p-0.5 border border-cyan-500/30">
+                  <div
+                    className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 rounded-full transition-all duration-75 shadow-[0_0_8px_rgba(6,182,212,0.8)]"
+                    style={{ width: `${nitro}%` }}
+                  />
+                </div>
+              </div>
+            </div>
           ) : (
             /* On-Foot Speed & Status Indicator */
             <div className="bg-emerald-950/85 px-3.5 py-1.5 rounded-2xl border border-emerald-400/60 backdrop-blur-md shadow-xl flex items-center gap-2">
@@ -602,6 +670,45 @@ export const CityHUD: React.FC<CityHUDProps> = ({
                 </button>
               )}
 
+              {/* 30-Min Real-Time Motorsport Telemetry Dashboard Button */}
+              {onOpenPerformance && (
+                <button
+                  onClick={() => {
+                    soundEngine.playUIClick();
+                    onOpenPerformance();
+                  }}
+                  className="h-8 sm:h-8.5 px-2.5 rounded-xl border border-cyan-400/80 bg-gradient-to-r from-cyan-950/90 via-blue-950/85 to-purple-950/80 hover:border-cyan-300 text-cyan-200 flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer font-race font-bold shadow-[0_0_15px_rgba(6,182,212,0.45)] shrink-0"
+                  title="Open Real-Time Motorsport Telemetry & 30-Min Performance Dashboard [T]"
+                >
+                  <Gauge className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span className="text-[9px] sm:text-[10px] tracking-wide hidden sm:inline">TELEMETRY</span>
+                  <span className="text-[8px] font-mono text-cyan-300 font-bold hidden md:inline">[T]</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping hidden sm:inline" />
+                </button>
+              )}
+
+              {/* Quick Vehicle Switch (Car ⇄ Superbike) */}
+              {onToggleVehicleType && (
+                <button
+                  onClick={() => {
+                    soundEngine.playUIClick();
+                    onToggleVehicleType();
+                  }}
+                  className={`h-8 sm:h-8.5 px-2 sm:px-2.5 rounded-xl border flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer font-race font-bold shadow-md shrink-0 ${
+                    isCarActive
+                      ? 'border-blue-400/80 bg-blue-950/85 text-blue-200 hover:border-blue-300 shadow-[0_0_12px_rgba(37,99,235,0.4)]'
+                      : 'border-emerald-400/80 bg-emerald-950/85 text-emerald-200 hover:border-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.4)]'
+                  }`}
+                  title="Switch Vehicle: Sports Car ⇄ Superbike (Key V)"
+                >
+                  <span className="text-xs sm:text-sm">{isCarActive ? '🏎️' : '🏍️'}</span>
+                  <span className="text-[9px] sm:text-[10px] tracking-wide hidden sm:inline">
+                    {isCarActive ? 'CAR' : 'BIKE'}
+                  </span>
+                  <span className="text-[8px] font-mono text-zinc-400 hidden md:inline">[V]</span>
+                </button>
+              )}
+
               {/* Camera Cycle */}
               <button
                 onClick={handleCameraToggleClick}
@@ -669,6 +776,23 @@ export const CityHUD: React.FC<CityHUDProps> = ({
               <span className="text-[8px] font-race font-bold text-zinc-400 uppercase tracking-widest px-2 py-0.5 border-b border-white/10">
                 CITY TOOLS & SETTINGS
               </span>
+
+              {/* 30M Telemetry Dashboard */}
+              {onOpenPerformance && (
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onOpenPerformance();
+                  }}
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-cyan-400/60 bg-gradient-to-r from-cyan-950/70 to-blue-950/70 hover:border-cyan-400 text-cyan-200 flex items-center justify-between text-xs cursor-pointer active:scale-95 transition-all shadow-md"
+                >
+                  <div className="flex items-center gap-2">
+                    <Gauge className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="font-race font-bold text-[10px]">30M TELEMETRY DASHBOARD</span>
+                  </div>
+                  <span className="text-[8px] font-mono text-cyan-400 font-bold">[T]</span>
+                </button>
+              )}
 
               {/* Modern Kid Tech Gear in Drawer */}
               {onOpenKidGearModal && (
@@ -995,20 +1119,6 @@ export const CityHUD: React.FC<CityHUDProps> = ({
           - Compact pill that never collides with side controls
           ========================================================= */}
       <div className="fixed bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 pointer-events-auto z-30 flex flex-col items-center gap-1.5">
-        {/* Digital Cockpit Dashboard Binnacle (when docked at bottom - desktop only to prevent mobile overlap) */}
-        {playerState.isOnBike && cockpitDock === 'bottom' && (
-          <div className="mb-1 w-full max-w-[92vw] sm:max-w-[460px] hidden md:block">
-            <AutomotiveHUD
-              vehicleState={playerState}
-              speedUnit={speedUnit}
-              dockPosition="bottom"
-              onToggleDock={() => setCockpitDock('top')}
-              carStyle={carStyle}
-              onToggleCarStyle={() => onSwitchCarStyle?.(carStyle === 'bmw_m' ? 'benz_amg' : 'bmw_m')}
-              className="w-full animate-in fade-in slide-in-from-bottom duration-150"
-            />
-          </div>
-        )}
 
         {mountTransition && mountTransition.state !== 'NONE' ? (
           /* Dedicated Cinematic Car Door Entry/Exit Indicator */
@@ -1207,4 +1317,4 @@ export const CityHUD: React.FC<CityHUDProps> = ({
       </div>
     </div>
   );
-};
+});

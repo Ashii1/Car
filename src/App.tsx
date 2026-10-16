@@ -31,6 +31,7 @@ import { VisualInspectionModal } from './components/VisualInspectionModal';
 import { ReplayModal, CinematicCameraAngle } from './components/ReplayModal';
 import { DailyChallengesModal } from './components/DailyChallengesModal';
 import { ModernKidGearModal } from './components/ModernKidGearModal';
+import { PerformanceDashboardModal } from './components/PerformanceDashboardModal';
 import { DroneSkinId } from './3d/ModernKidCompanionDrone';
 import { globalReplayRecorder, SavedReplayClip } from './game/ReplayRecorder';
 import { cityAudio } from './audio/CityAudioEngine';
@@ -91,6 +92,7 @@ export default function App() {
   const [showInspection, setShowInspection] = useState(false);
   const [showDailyChallenges, setShowDailyChallenges] = useState(false);
   const [showKidGear, setShowKidGear] = useState(false);
+  const [showPerformanceDashboard, setShowPerformanceDashboard] = useState(false);
   const [isDroneEnabled, setIsDroneEnabled] = useState(profile.droneEnabled ?? true);
   const [currentDroneSkin, setCurrentDroneSkin] = useState<DroneSkinId>((profile.droneSkin as DroneSkinId) || 'cyber_neon');
   const [isStreamerMode, setIsStreamerMode] = useState(profile.streamerMode ?? false);
@@ -346,6 +348,9 @@ export default function App() {
 
       gameSceneRef.current = gameScene;
       gameScene.setGraphicsQuality(settings.graphicsQuality);
+      if (settings.trafficDensity) {
+        gameScene.setTrafficDensity(settings.trafficDensity);
+      }
       gameScene.start();
 
       return () => {
@@ -381,7 +386,8 @@ export default function App() {
       keysDown.current[e.code] = true;
 
       if (e.code === 'KeyM') setShowMap((prev) => !prev);
-      if (e.code === 'KeyT') setShowMissions((prev) => !prev);
+      if (e.code === 'KeyT') setShowPerformanceDashboard((prev) => !prev);
+      if (e.code === 'KeyJ') setShowMissions((prev) => !prev);
       if (e.code === 'KeyK') setShowKidGear((prev) => !prev);
       if (e.code === 'KeyH') gameSceneRef.current?.honkHorn();
       if (e.code === 'KeyQ' || e.code === 'KeyE') gameSceneRef.current?.toggleMount();
@@ -597,39 +603,45 @@ export default function App() {
     let anim: number;
     let lastWantedLevel = -1;
     let lastEvadeTimerSec = -1;
+    let lastPollTimestamp = 0;
 
-    const poll = () => {
-      if (gameSceneRef.current) {
-        const ps = gameSceneRef.current.getPlayerState();
-        setHudPlayerState({ ...ps });
+    const poll = (timestamp: number) => {
+      // Throttle React HUD updates to ~30 FPS (every 32ms) to eliminate frame stutter during high-speed driving
+      if (timestamp - lastPollTimestamp >= 32) {
+        lastPollTimestamp = timestamp;
 
-        const activeGear = gameSceneRef.current.getCurrentGear();
-        if (activeGear) {
-          setCurrentGear((prev) => (prev !== activeGear ? activeGear : prev));
-        }
+        if (gameSceneRef.current) {
+          const ps = gameSceneRef.current.getPlayerState();
+          setHudPlayerState({ ...ps });
 
-        const ws = gameSceneRef.current.getWantedState();
-        if (ws) {
-          const evadeSec = Math.round(ws.evadeTimer);
-          if (ws.level !== lastWantedLevel || evadeSec !== lastEvadeTimerSec) {
-            lastWantedLevel = ws.level;
-            lastEvadeTimerSec = evadeSec;
-            setWantedState({ ...ws });
+          const activeGear = gameSceneRef.current.getCurrentGear();
+          if (activeGear) {
+            setCurrentGear((prev) => (prev !== activeGear ? activeGear : prev));
           }
-        } else if (lastWantedLevel !== -1) {
-          lastWantedLevel = -1;
-          lastEvadeTimerSec = -1;
-          setWantedState(null);
-        }
-        if (showReplay) {
-          setReplayTime(gameSceneRef.current.getReplayTime());
+
+          const ws = gameSceneRef.current.getWantedState();
+          if (ws) {
+            const evadeSec = Math.round(ws.evadeTimer);
+            if (ws.level !== lastWantedLevel || evadeSec !== lastEvadeTimerSec) {
+              lastWantedLevel = ws.level;
+              lastEvadeTimerSec = evadeSec;
+              setWantedState({ ...ws });
+            }
+          } else if (lastWantedLevel !== -1) {
+            lastWantedLevel = -1;
+            lastEvadeTimerSec = -1;
+            setWantedState(null);
+          }
+          if (showReplay) {
+            setReplayTime(gameSceneRef.current.getReplayTime());
+          }
         }
       }
       anim = requestAnimationFrame(poll);
     };
     anim = requestAnimationFrame(poll);
     return () => cancelAnimationFrame(anim);
-  }, []);
+  }, [showReplay]);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#06080d] select-none">
@@ -1020,6 +1032,7 @@ export default function App() {
           onToggleVehicleType={handleToggleVehicleType}
           isCarActive={currentBike.category === 'German Supercar'}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenPerformance={() => setShowPerformanceDashboard(true)}
         />
       )}
 
@@ -1235,6 +1248,9 @@ export default function App() {
           onUpdateSettings={(newSettings) => {
             setSettings(newSettings);
             gameSceneRef.current?.setGraphicsQuality(newSettings.graphicsQuality);
+            if (newSettings.trafficDensity) {
+              gameSceneRef.current?.setTrafficDensity(newSettings.trafficDensity);
+            }
             try {
               localStorage.setItem('street_riders_settings', JSON.stringify(newSettings));
             } catch {}
@@ -1242,6 +1258,14 @@ export default function App() {
           currentVehicleId={currentBike.id}
           onSelectVehicle={handleSelectVehicle}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showPerformanceDashboard && (
+        <PerformanceDashboardModal
+          isOpen={showPerformanceDashboard}
+          onClose={() => setShowPerformanceDashboard(false)}
+          currentSpeedUnit={settings.speedUnit}
         />
       )}
     </div>

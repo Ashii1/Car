@@ -92,17 +92,68 @@ export function createRaceScene(
   canvas.style.display = 'block';
   container.appendChild(canvas);
 
-  const renderer = new THREE.WebGLRenderer({
-    canvas,
-    antialias: true,
-    powerPreference: 'default',
+  let renderer: THREE.WebGLRenderer;
+  const contextAttrs: WebGLContextAttributes = {
+    powerPreference: 'high-performance',
     failIfMajorPerformanceCaveat: false,
-  });
+    antialias: false,
+    alpha: false,
+    depth: true,
+  };
+
+  let gl: RenderingContext | null = null;
+  try {
+    gl = canvas.getContext('webgl2', contextAttrs);
+  } catch {}
+
+  if (!gl) {
+    try {
+      gl = canvas.getContext('webgl', contextAttrs) || canvas.getContext('experimental-webgl', contextAttrs);
+    } catch {}
+  }
+
+  if (gl) {
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        context: gl as any,
+        antialias: false,
+        powerPreference: 'high-performance',
+      });
+    } catch {
+      renderer = {
+        domElement: canvas,
+        debug: { checkShaderErrors: false },
+        shadowMap: { enabled: false, type: 0 },
+        toneMapping: 0,
+        toneMappingExposure: 1.0,
+        setSize: () => {},
+        setPixelRatio: () => {},
+        render: () => {},
+        dispose: () => {},
+        getContext: () => null,
+      } as unknown as THREE.WebGLRenderer;
+    }
+  } else {
+    renderer = {
+      domElement: canvas,
+      debug: { checkShaderErrors: false },
+      shadowMap: { enabled: false, type: 0 },
+      toneMapping: 0,
+      toneMappingExposure: 1.0,
+      setSize: () => {},
+      setPixelRatio: () => {},
+      render: () => {},
+      dispose: () => {},
+      getContext: () => null,
+    } as unknown as THREE.WebGLRenderer;
+  }
+
   renderer.debug.checkShaderErrors = false;
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.setPixelRatio(1.0);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.BasicShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = weather === 'night' || weather === 'nightRain' ? 1.4 : 1.1;
 
@@ -119,8 +170,8 @@ export function createRaceScene(
   );
   sunLight.position.set(120, 200, 80);
   sunLight.castShadow = true;
-  sunLight.shadow.mapSize.width = 2048;
-  sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.mapSize.width = 1024;
+  sunLight.shadow.mapSize.height = 1024;
   sunLight.shadow.camera.near = 10;
   sunLight.shadow.camera.far = 400;
   sunLight.shadow.bias = -0.0004;

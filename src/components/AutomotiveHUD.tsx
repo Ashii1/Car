@@ -318,7 +318,7 @@ export const AutomotiveHUD: React.FC<AutomotiveHUDProps> = ({
     >
       {/* COCKPIT DASHBOARD BINNACLE SHELL */}
       <div
-        className={`relative rounded-3xl border backdrop-blur-2xl bg-black/90 p-2.5 sm:p-3.5 flex flex-col gap-2 transition-all duration-300 ${
+        className={`relative rounded-3xl border bg-[#0a0e18]/95 p-2.5 sm:p-3.5 flex flex-col gap-2 transition-all duration-300 shadow-2xl ${
           theme.border
         } ${isCompact ? 'max-w-[280px]' : 'w-full max-w-[530px]'}`}
         style={{

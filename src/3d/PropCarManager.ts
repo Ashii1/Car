@@ -315,8 +315,17 @@ export class PropCarManager {
     return null;
   }
 
+  private lastTimeOfDay?: TimeOfDay;
+  private lastWeather?: WeatherType;
+
   // Update prop car animations (hazard flashers during alarm)
   public update(delta: number, timeOfDay?: TimeOfDay, weather?: WeatherType) {
+    const hasLightingChanged = timeOfDay !== this.lastTimeOfDay || weather !== this.lastWeather;
+    if (hasLightingChanged) {
+      this.lastTimeOfDay = timeOfDay;
+      this.lastWeather = weather;
+    }
+
     for (const pc of this.propCars) {
       if (pc.alarmActive) {
         pc.alarmTimer -= delta;
@@ -332,8 +341,8 @@ export class PropCarManager {
         }
       }
 
-      // Update ambient day/night lighting
-      if (timeOfDay && weather) {
+      // Update ambient day/night lighting only when environment changes
+      if (hasLightingChanged && timeOfDay && weather) {
         pc.vehicle.updateLighting?.(timeOfDay, weather);
       }
     }

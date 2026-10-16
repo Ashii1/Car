@@ -307,8 +307,8 @@ export class PedestrianManager {
 
       const distToPlayer = Math.hypot(playerX - p.x, playerZ - p.z);
 
-      // Distance Culling: hide pedestrian meshes beyond 130m to eliminate draw calls and bone math
-      const isNearby = distToPlayer < 130;
+      // Distance Culling: hide pedestrian meshes beyond 80m to eliminate draw calls and bone math
+      const isNearby = distToPlayer < 80;
       if (vis.group.visible !== isNearby) {
         vis.group.visible = isNearby;
       }

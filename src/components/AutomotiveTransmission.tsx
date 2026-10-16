@@ -36,7 +36,7 @@ export const AutomotiveTransmission: React.FC<AutomotiveTransmissionProps> = ({
 
   return (
     <div
-      className={`select-none touch-none flex items-center gap-2 p-1.5 sm:p-2 bg-black/92 backdrop-blur-2xl rounded-2xl border border-white/20 shadow-[0_0_25px_rgba(0,0,0,0.85)] ring-1 ring-white/10 ${className}`}
+      className={`select-none touch-none flex items-center gap-2 p-1.5 sm:p-2 bg-[#090d15]/95 rounded-2xl border border-white/20 shadow-xl ring-1 ring-white/10 ${className}`}
       data-testid="automotive-transmission-selector"
     >
       {/* Electronic PRND Shifter Gate */}

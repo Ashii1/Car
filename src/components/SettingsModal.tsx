@@ -40,6 +40,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const fastSettings: GameSettings = {
       ...settings,
       graphicsQuality: 'low',
+      trafficDensity: 'low',
       motionBlur: false,
       cameraShake: false,
     };
@@ -228,6 +229,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               : settings.graphicsQuality === 'medium'
               ? '⚡ Smooth performance: Optimized basic shadow filtering and native resolution.'
               : '🌟 High-definition filtered shadows and rich atmospheric lighting.'}
+          </p>
+        </div>
+
+        {/* 2.5 CITY TRAFFIC DENSITY (AI VEHICLES) */}
+        <div className="space-y-3 pt-2 border-t border-white/10">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-race uppercase text-zinc-300 font-bold flex items-center gap-1.5">
+              <Car className="w-4 h-4 text-amber-400" /> CITY TRAFFIC DENSITY (AI VEHICLES)
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 font-bold">
+              AI TRAFFIC FLOW
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[
+              { id: 'off', label: 'OFF (0 CARS)', desc: 'Max FPS • Empty Roads' },
+              { id: 'low', label: 'LOW (10 CARS)', desc: 'Light Traffic • Fast' },
+              { id: 'medium', label: 'MED (22 CARS)', desc: 'Balanced Flow • Default' },
+              { id: 'high', label: 'HIGH (38 CARS)', desc: 'Bustling City Roads' },
+            ].map((td) => {
+              const active = (settings.trafficDensity || 'medium') === td.id;
+              return (
+                <button
+                  key={td.id}
+                  onClick={() => {
+                    soundEngine.playUIClick();
+                    handleChange('trafficDensity', td.id as any);
+                  }}
+                  className={`py-2 px-2.5 rounded-xl text-left transition-all cursor-pointer border flex flex-col justify-between ${
+                    active
+                      ? 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/10 ring-1 ring-amber-400'
+                      : 'bg-zinc-900/80 text-zinc-400 border-white/10 hover:text-white hover:bg-zinc-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[11px] font-race font-bold tracking-tight">{td.label}</span>
+                    {active && <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />}
+                  </div>
+                  <span className="text-[9px] font-mono text-zinc-400 mt-1">{td.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] font-mono text-zinc-400">
+            {(settings.trafficDensity || 'medium') === 'off'
+              ? '⚡ Maximum performance: All NPC traffic removed for wide-open streets, highest FPS, and time trial speed runs.'
+              : (settings.trafficDensity || 'medium') === 'low'
+              ? '⚡ Light ambient traffic with low CPU/GPU load for smooth driving on mobile and budget laptops.'
+              : (settings.trafficDensity || 'medium') === 'medium'
+              ? '🚗 Balanced urban traffic with buses, autos, delivery tempos, and bikes.'
+              : '🔥 Dense, vibrant city traffic with active overtaking, state transport buses, and highway cruisers.'}
           </p>
         </div>
 

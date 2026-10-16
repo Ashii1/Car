@@ -57,7 +57,7 @@ export const AutomotivePedals: React.FC<AutomotivePedalsProps> = ({
 
   return (
     <div
-      className={`select-none touch-none flex flex-col items-stretch gap-2 p-2 sm:p-2.5 bg-black/95 backdrop-blur-2xl rounded-3xl border border-white/20 shadow-[0_0_35px_rgba(0,0,0,0.9)] ring-1 ring-white/10 w-[185px] sm:w-[210px] md:w-[230px] ${className}`}
+      className={`select-none touch-none flex flex-col items-stretch gap-2 p-2 sm:p-2.5 bg-[#090d15]/95 rounded-3xl border border-white/20 shadow-2xl ring-1 ring-white/10 w-[185px] sm:w-[210px] md:w-[230px] ${className}`}
       data-testid="automotive-pedals-system"
     >
       {/* 1. Quick Shifter Header (Shown on mobile & tablets to eliminate center button overlap) */}

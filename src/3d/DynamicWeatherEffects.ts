@@ -273,6 +273,17 @@ export class DynamicWeatherEffects {
   ) {
     const isRain = weather === 'rain';
 
+    if (!isRain && this.puddleWetness <= 0.01) {
+      if (this.rainParticles.visible) {
+        this.rainParticles.visible = false;
+        this.splashParticles.visible = false;
+        this.bikeHitParticles.visible = false;
+        this.tireSprayParticles.visible = false;
+        this.puddleGroup.visible = false;
+      }
+      return;
+    }
+
     // 1. Dynamic Puddle Formation & Evaporation
     if (isRain) {
       // Puddles form steadily during rain

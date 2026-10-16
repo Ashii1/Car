@@ -41,7 +41,8 @@ const STORAGE_KEY = 'open_city_saved_replays';
 export class ReplayRecorder {
   private frames: ReplayFrame[] = [];
   private recordingElapsed = 0;
-  private lastRecordTimestamp = 0;
+  private sampleInterval = 0.04; // 25 FPS capture rate (ultra-smooth replay with lerp interpolation)
+  private timeSinceLastSample = 0;
 
   public recordFrame(
     state: {
@@ -73,6 +74,13 @@ export class ReplayRecorder {
     delta: number
   ) {
     this.recordingElapsed += Math.max(0.001, delta);
+    this.timeSinceLastSample += delta;
+
+    // Throttle to 25 FPS for zero main-thread lag while driving
+    if (this.timeSinceLastSample < this.sampleInterval) {
+      return;
+    }
+    this.timeSinceLastSample = 0;
 
     const frame: ReplayFrame = {
       time: this.recordingElapsed,
@@ -100,10 +108,14 @@ export class ReplayRecorder {
 
     this.frames.push(frame);
 
-    // Prune frames older than MAX_RECORD_SECONDS
+    // Fast bulk prune: count expired frames and slice/splice once instead of shifting per-frame
     const cutoffTime = this.recordingElapsed - MAX_RECORD_SECONDS;
-    while (this.frames.length > 2 && this.frames[0].time < cutoffTime) {
-      this.frames.shift();
+    let pruneCount = 0;
+    while (pruneCount < this.frames.length - 2 && this.frames[pruneCount].time < cutoffTime) {
+      pruneCount++;
+    }
+    if (pruneCount > 0) {
+      this.frames.splice(0, pruneCount);
     }
   }
 
